@@ -1,15 +1,15 @@
 {
   "name": "Paper to Phone",
-  "short_name": "Papers",
-  "description": "Research papers reflowed for your phone, kept in your own OneDrive.",
+  "short_name": "Paper to Phone",
+  "description": "Research papers reflowed for your phone, with every figure, table and reference.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#FDFDFC",
-  "theme_color": "#26235E",
+  "theme_color": "#FDFDFC",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/icon-192.png?v=2", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png?v=2", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

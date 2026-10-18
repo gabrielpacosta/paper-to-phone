@@ -475,6 +475,24 @@
   /* ---------- state shared by every device ---------- */
   var drive = null, me = null, folder = null, sub = {}, libjson = {}, libjsonTag = null;
   var state = ls('p2p:state', { papers: {}, meta: {}, prefs: null, prefsT: 0 });
+  if (!state.notes) state.notes = {};
+
+  /* Highlights merge item by item: the newer edit wins, and a removal beats edits made before it. */
+  function mergeNotes(a, b) {
+    a = a || {}; b = b || {};
+    var out = { items: {}, gone: Object.assign({}, a.gone || {}) };
+    Object.keys(b.gone || {}).forEach(function (id) { if (!out.gone[id] || b.gone[id] > out.gone[id]) out.gone[id] = b.gone[id]; });
+    [a.items || {}, b.items || {}].forEach(function (src) {
+      Object.keys(src).forEach(function (id) { var x = src[id], cur = out.items[id]; if (!cur || (x.u || 0) > (cur.u || 0)) out.items[id] = x; });
+    });
+    Object.keys(out.items).forEach(function (id) { if (out.gone[id] && out.gone[id] >= (out.items[id].u || 0)) delete out.items[id]; });
+    return out;
+  }
+  function notesSig(n) {
+    if (!n) return '';
+    return Object.keys(n.items || {}).sort().map(function (id) { return id + ':' + (n.items[id].u || 0); }).join(',') + '|' +
+           Object.keys(n.gone || {}).sort().join(',');
+  }
   var stateTag = ls('p2p:stateTag', null), lastSync = 0, syncing = false;
   var view = ls('p2p:snap', { lib: [], wait: [], bad: [] });
 
@@ -487,6 +505,11 @@
       else if (r.opened && (!l.opened || r.opened > l.opened)) l.opened = r.opened;
       var pos = ls('p2p:pos:' + k, null);           // the reader resumes from this key
       if (r.t && (!pos || (pos.t || 0) < r.t)) lsSet('p2p:pos:' + k, { p: r.p, h: r.h, t: r.t });
+    });
+    Object.keys(remote.notes || {}).forEach(function (k) {
+      state.notes[k] = mergeNotes(state.notes[k], remote.notes[k]);
+      var loc = ls('p2p:hl:' + k, null), m = mergeNotes(loc, state.notes[k]);
+      if (notesSig(m) !== notesSig(loc)) lsSet('p2p:hl:' + k, m);
     });
     Object.assign(state.meta, remote.meta || {});
     if (remote.prefs && (remote.prefsT || 0) > (state.prefsT || 0)) {
@@ -502,6 +525,11 @@
       if (!k) return;
       var pos = ls('p2p:pos:' + k, null), cur = state.papers[k];
       if (pos && pos.t && (!cur || (cur.t || 0) < pos.t)) { state.papers[k] = Object.assign({}, cur || {}, { p: pos.p, h: pos.h, t: pos.t }); changed = true; }
+      var hl = ls('p2p:hl:' + k, null);
+      if (hl) {
+        var m = mergeNotes(state.notes[k], hl);
+        if (notesSig(m) !== notesSig(state.notes[k])) { state.notes[k] = m; changed = true; }
+      }
     });
     var prefs = ls('p2p:prefs', null);
     if (prefs && JSON.stringify(prefs) !== ls('p2p:prefsSeen', '')) {
@@ -707,14 +735,29 @@
     Promise.all(jobs).then(function () {
       view.lib = view.lib.filter(function (x) { return x !== p; });
       render();
-      toast(drive.demo ? 'Deleted from the sample.' : 'Moved to the OneDrive recycle bin.');
+      toast(drive.demo ? 'Deleted from the sample.' : drive.local ? 'Deleted from this device.' : 'Moved to the OneDrive recycle bin.');
     }).catch(function (e) { fail(e, 'Deleting'); });
   }
+  /* Books: hand the EPUB to the share sheet, where iPhone lists Books. Where sharing files isn't
+     supported (most computers), save the EPUB instead. */
+  function shareEpub(file) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      return navigator.share({ files: [file] }).catch(function (e) {
+        if (e && e.name === 'AbortError') return;                     // closed the share sheet
+        // Safari needs a fresh tap if reading the file took too long
+        toast('Ready for Books.', 'Open', function () { navigator.share({ files: [file] }).catch(function () {}); }, 10000);
+      });
+    }
+    var a = D.createElement('a'), url = URL.createObjectURL(file);
+    a.href = url; a.download = file.name; D.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+    toast('EPUB saved. Open it with Books or any e-book app.');
+    return Promise.resolve();
+  }
   function openEpub(p) {
-    var win = W.open('', '_blank');
-    drive.item(p.epub.id).then(function (it) {
-      if (win && it.download) win.location = it.download; else if (it.download) location.href = it.download;
-    }).catch(function (e) { if (win) win.close(); fail(e, 'Opening the EPUB'); });
+    return drive.readBytes(p.epub).then(function (buf) {
+      return shareEpub(new File([buf], p.epub.name, { type: 'application/epub+zip' }));
+    }).catch(function (e) { fail(e, 'Opening the EPUB'); });
   }
   function showNote(x) {
     $('note-text').textContent = 'Loading…';
@@ -768,11 +811,33 @@
     $('loading-text').textContent = text || '';
     $('back').hidden = !text;
   }
+  /* Papers converted earlier carry an older reader. Swap in the current one (same page layout) so
+     every paper gets new reader features, such as highlights, without converting it again. */
+  var reader = null;
+  function loadReader() {
+    if (!reader) reader = Promise.all([fetch('reader/reader.js'), fetch('reader/reader.css')]).then(function (rs) {
+      if (!rs[0].ok || !rs[1].ok) throw new Error('reader');
+      return Promise.all([rs[0].text(), rs[1].text()]);
+    }).then(function (t) { return { js: t[0], css: t[1].replace(/\/\*[\s\S]*?\*\//g, '') }; }, function () { reader = null; return null; });
+    return reader;
+  }
+  var READER_SIG = /\/\* p2p-reader (\d+) \*\//, readerNow = null;
+  function upgradeReader(html) {
+    if (!readerNow || html.indexOf('P2P_SHELF') < 0 || html.indexOf('id="paper"') < 0) return html;
+    var have = html.match(READER_SIG), want = readerNow.js.match(READER_SIG);
+    if (!want || (have && +have[1] >= +want[1])) return html;
+    var end = html.lastIndexOf('</body>'), si = html.lastIndexOf('<script>', end), se = html.indexOf('</script>', si);
+    if (end < 0 || si < 0 || se < 0 || se > end || html.slice(si, se).indexOf('P2P_SHELF') < 0) return html;
+    html = html.slice(0, si + 8) + readerNow.js + html.slice(se);
+    var head = html.indexOf('</head>'), hs = html.indexOf('<style>'), he = html.indexOf('</style>', hs);
+    if (hs >= 0 && he > hs && he < head) html = html.slice(0, hs + 7) + readerNow.css + html.slice(he);
+    return html;
+  }
   function openPaper(p) {
     reading = p;
     $('toast').classList.remove('on');
     showReader('Opening');
-    cacheGet(p.item.id).then(function (c) {
+    loadReader().then(function (r) { readerNow = r; return cacheGet(p.item.id); }).then(function (c) {
       if (c && (c.etag === p.item.etag || !navigator.onLine)) return c.html;
       $('loading-text').textContent = 'Downloading ' + mb(p.item.size || 0);
       return drive.readText(p.item).then(function (html) { cachePut({ id: p.item.id, etag: p.item.etag, html: html }); return html; })
@@ -789,6 +854,7 @@
         thumbFrom(m.img, p.item.name);
         schedulePush(true);
       }
+      html = upgradeReader(html);
       $('frame').srcdoc = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, function (x) { return x + INJECT; }) : INJECT + html;
       clearTimeout(readyTimer);
       readyTimer = setTimeout(function () { $('back').hidden = false; $('loading').hidden = true; }, 3000);
@@ -816,14 +882,22 @@
   /* ---------- adding papers ---------- */
   function isRef(t) { return /^\s*(https?:\/\/\S+|10\.\d{4,9}\/\S+|doi:\s*10\.\S+|arxiv:\s*\S+|PMC\d{5,9})\s*$/i.test(t); }
   function stamp() { var d = new Date(); return d.toISOString().slice(0, 10) + ' ' + String(d.getHours()).padStart(2, '0') + '.' + String(d.getMinutes()).padStart(2, '0') + '.' + String(d.getSeconds()).padStart(2, '0'); }
+  /* A pasted PDF can arrive with no name or a generic type, so check the file's first bytes too. */
+  function sniffPdf(f) {
+    if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') return Promise.resolve(true);
+    if (PAPER_EXT.test(f.name) || f.type === 'text/html' || /^image\//.test(f.type)) return Promise.resolve(false);
+    return f.slice(0, 1024).arrayBuffer().then(function (b) {
+      return /%PDF-/.test(String.fromCharCode.apply(null, new Uint8Array(b)));
+    }, function () { return false; });
+  }
   function addFiles(files) {
     files = Array.prototype.slice.call(files || []);
     if (!files.length || !sub.inbox) return Promise.resolve();
     hideSheet();
     var n = 0;
     return files.reduce(function (chain, f) {
-      return chain.then(function () {
-        if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+      return chain.then(function () { return sniffPdf(f); }).then(function (isPdf) {
+        if (isPdf) {
           if (!drive.local) setStatus('busy', 'Uploading ' + f.name);
           return drive.upload(sub.inbox.id, /\.pdf$/i.test(f.name) ? f.name : 'Pasted ' + stamp() + '.pdf', f, function (p) { setStatus('busy', 'Uploading ' + Math.round(p * 100) + '%'); })
             .then(function () { n++; toast('Converting on this device. It takes a few seconds.'); });
@@ -840,6 +914,7 @@
             });
           });
         }
+        if (/^image\//.test(f.type)) { toast('That pasted as a picture, not as the PDF. Use Choose a file and pick the PDF instead.', null, null, 8000); return; }
         toast('Add a PDF, a reader file (.html), or a link.');
       });
     }, Promise.resolve()).then(function () { if (n) return refresh(); }).catch(function (e) { fail(e, 'Uploading'); refresh(true); });
@@ -880,14 +955,34 @@
   $('link').addEventListener('input', function () { $('add-link').disabled = !isRef($('link').value) && !arxivId($('link').value); });
   $('link').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !$('add-link').disabled) addLink($('link').value); });
   $('add-link').addEventListener('click', function () { addLink($('link').value); });
+  /* The Paste button reads whatever is copied: a PDF goes straight to conversion, text goes into the link field. */
+  function pasteText(t) {
+    $('link').value = (t || '').trim();
+    $('add-link').disabled = !isRef($('link').value) && !arxivId($('link').value);
+    if (!t) toast('Nothing to paste here. For a copied PDF, touch and hold the dashed box, then tap Paste.', null, null, 7000);
+  }
+  function pasteFallback() {
+    if (!navigator.clipboard || !navigator.clipboard.readText) { $('link').focus(); toast('Touch and hold the field, then tap Paste.'); return; }
+    navigator.clipboard.readText().then(pasteText, function () { $('link').focus(); toast('Touch and hold the field, then tap Paste.'); });
+  }
   $('paste').addEventListener('click', function () {
-    if (!navigator.clipboard || !navigator.clipboard.readText) { $('link').focus(); toast('Long-press the field and choose Paste.'); return; }
-    navigator.clipboard.readText().then(function (t) { $('link').value = (t || '').trim(); $('add-link').disabled = !isRef($('link').value); if (!t) toast('The clipboard is empty, or holds a file. To add a copied PDF, paste it on this screen.'); },
-      function () { $('link').focus(); toast('Long-press the field and choose Paste.'); });
+    if (!navigator.clipboard || !navigator.clipboard.read) { pasteFallback(); return; }
+    navigator.clipboard.read().then(function (items) {
+      var pdf = null, text = null;
+      items.forEach(function (it) {
+        it.types.forEach(function (t) {
+          if (!pdf && t === 'application/pdf') pdf = it.getType(t);
+          if (!text && (t === 'text/plain' || t === 'text/uri-list')) text = it.getType(t);
+        });
+      });
+      if (pdf) return pdf.then(function (b) { return addFiles([new File([b], 'Pasted ' + stamp() + '.pdf', { type: 'application/pdf' })]); });
+      if (text) return text.then(function (b) { return b.text(); }).then(pasteText);
+      pasteText('');
+    }).catch(pasteFallback);
   });
-  var PASTE_HINT = 'Long-press here and choose Paste';
-  $('pastebox').addEventListener('input', function () { $('pastebox').textContent = PASTE_HINT; });   // never keep typed text
-  $('pastebox').addEventListener('blur', function () { $('pastebox').textContent = PASTE_HINT; });
+  // The box stays empty (its hint is drawn by CSS), so touch and hold brings up Paste instead of selecting words.
+  $('pastebox').addEventListener('input', function () { $('pastebox').textContent = ''; });   // never keep typed text
+  $('pastebox').addEventListener('blur', function () { $('pastebox').textContent = ''; });
   D.addEventListener('paste', function (e) {
     if (!$('reader').hidden || !drive || !folder) return;
     var cd = e.clipboardData;

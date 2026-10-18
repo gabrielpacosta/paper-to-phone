@@ -13,6 +13,13 @@ The app converts the PDF on the device: `converter/paper2phone.py` runs inside t
 The first conversion downloads the converter (about 20 MB, then cached); later ones take a few seconds.
 The PDF never leaves the device.
 
+## Reading
+
+- **Highlights and notes:** select text, then tap Highlight or Note. Tap a highlight to edit its note, copy it or
+  remove it. Contents lists every highlight; Copy all puts them on the clipboard with the paper's title.
+  Papers converted before this feature get it automatically when opened in the app.
+- **Books:** sends the EPUB to the share sheet, where Books is listed. On a computer it saves the EPUB.
+
 ## Optional: sync through OneDrive
 
 ```
