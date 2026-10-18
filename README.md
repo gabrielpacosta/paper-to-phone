@@ -1,11 +1,19 @@
 # Paper to Phone
 
-Research papers reflowed for your phone, with every figure, table and reference, kept in your own OneDrive.
+Research papers reflowed for your phone, with every figure, table and reference.
 
 **Open the app:** https://gabrielpacosta.github.io/paper-to-phone/ (on iPhone, use Share, then Add to Home Screen).
-**Try it without signing in:** https://gabrielpacosta.github.io/paper-to-phone/?demo
+**See a sample first:** https://gabrielpacosta.github.io/paper-to-phone/?demo
 
-## How it fits together
+## Convert on the phone
+
+Tap **Start reading**, then **+**, and pick a PDF from Files, paste a copied PDF, or paste an arXiv link.
+The app converts the PDF on the device: `converter/paper2phone.py` runs inside the browser through
+[Pyodide](https://pyodide.org) (Python compiled to WebAssembly) with PyMuPDF's WebAssembly build.
+The first conversion downloads the converter (about 20 MB, then cached); later ones take a few seconds.
+The PDF never leaves the device.
+
+## Optional: sync through OneDrive
 
 ```
 iPhone, Mac, PC ──add PDFs, links or reader files──▶  OneDrive / Paper to Phone / Inbox
