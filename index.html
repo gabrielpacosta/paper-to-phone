@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FDFDFC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1117" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Paper to Phone">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="description" content="Research papers reflowed for your phone, kept in your own OneDrive.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Paper to Phone</title>
+<style>
+/* One quiet column: a shelf of covers, one primary action, sheets for everything else, the reader on top. */
+:root{
+  --bg:#FDFDFC;--ink:#1B1D23;--ink-2:#575D6B;--ink-3:#8B909B;--rule:#E6E7EB;--fill:rgba(118,120,134,.11);
+  --raised:#FFFFFF;--accent:#4B45B8;--on-accent:#FFFFFF;--soft:rgba(75,69,184,.10);--cover:#26235E;--on-cover:#DAD8F7;
+  --warn:#B4531F;--warn-soft:rgba(180,83,31,.11);
+  --shadow:0 12px 40px rgba(22,24,44,.16),0 1px 3px rgba(22,24,44,.08);
+  --serif:ui-serif,"New York",Charter,"Iowan Old Style",Georgia,serif;
+  --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --ease:cubic-bezier(.32,.72,0,1);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0F1117;--ink:#E7E8EC;--ink-2:#A6ABB8;--ink-3:#737987;--rule:#262A34;--fill:rgba(160,166,190,.14);
+  --raised:#181B23;--accent:#A3ACFF;--on-accent:#0F1117;--soft:rgba(163,172,255,.13);--cover:#34307A;--on-cover:#DAD8F7;
+  --warn:#F0A070;--warn-soft:rgba(240,160,112,.13);
+  --shadow:0 12px 40px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.4);color-scheme:dark}}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg)}
+body{color:var(--ink);font:400 16px/1.45 var(--sans);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html.locked,html.locked body{overflow:hidden}
+button,input,label{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.wrap{max-width:640px;margin:0 auto;padding-block:30px 72px;
+  padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+
+/* welcome */
+.welcome{min-height:calc(100svh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;justify-content:center;gap:26px;padding-block:40px}
+.mark{width:64px;height:64px;border-radius:16px;background:var(--cover);display:grid;place-items:center;box-shadow:var(--shadow)}
+.mark svg{width:34px;height:34px}
+.welcome h1{margin:0;font:600 40px/1.04 var(--serif);letter-spacing:-.025em}
+.lede{margin:0;font:400 19px/1.45 var(--serif);color:var(--ink-2);max-width:30em}
+.points{display:grid;gap:12px;margin:0;padding:0;list-style:none;color:var(--ink-2);font-size:15px}
+.points li{display:flex;gap:12px;align-items:flex-start}
+.points svg{flex:none;width:20px;height:20px;margin-top:1px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.stack{display:grid;gap:10px;max-width:420px}
+.fine{margin:0;color:var(--ink-3);font-size:13px;max-width:34em}
+
+/* buttons */
+.primary{display:inline-flex;align-items:center;justify-content:center;gap:9px;height:52px;padding:0 22px;border:0;border-radius:15px;
+  background:var(--accent);color:var(--on-accent);font-weight:600;font-size:16px;cursor:pointer;transition:transform .2s var(--ease)}
+.primary:active{transform:scale(.98)}
+.primary:disabled{opacity:.5}
+.primary svg,.quiet svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.quiet{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:52px;padding:0 18px;border:0;border-radius:15px;background:var(--fill);color:var(--ink);font-weight:600;font-size:15px;cursor:pointer}
+.quiet.small{height:38px;padding:0 14px;border-radius:12px;font-size:14px}
+.quiet[aria-pressed="true"]{background:var(--soft);color:var(--accent)}
+.link{border:0;background:none;padding:6px 0;color:var(--accent);font-weight:600;font-size:15px;cursor:pointer;text-align:left}
+
+/* library */
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px}
+.top h1{margin:0;font:600 34px/1.08 var(--serif);letter-spacing:-.022em}
+.who{flex:none;width:40px;height:40px;border-radius:20px;border:0;background:var(--cover);color:var(--on-cover);font:600 15px/1 var(--sans);cursor:pointer}
+.status{display:flex;align-items:center;gap:8px;margin:2px 0 20px;color:var(--ink-2);font-size:14px;min-height:20px}
+.dot{width:8px;height:8px;border-radius:4px;background:#3BAA6E;flex:none}
+.dot.busy{background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+.dot.off{background:var(--ink-3)}
+.dot.bad{background:var(--warn)}
+@keyframes pulse{50%{opacity:.35}}
+.actions{display:flex;gap:10px;margin-bottom:6px}
+.actions .primary{flex:1}
+.group{margin-top:26px}
+.group h2{margin:0 0 4px;font:600 13px/1.3 var(--sans);color:var(--ink-2)}
+.group p.hint{margin:0 0 8px;color:var(--ink-3);font-size:13px}
+ul.list{list-style:none;margin:0;padding:0}
+.row{display:flex;align-items:center;gap:12px;border-top:1px solid var(--rule)}
+.row:last-child{border-bottom:1px solid var(--rule)}
+.open{flex:1;min-width:0;display:flex;gap:14px;align-items:flex-start;padding:15px 0;border:0;background:none;text-align:left;cursor:pointer}
+.open:active .cover{transform:scale(.97)}
+.cover{flex:none;width:58px;height:78px;border-radius:8px;background:var(--cover) center/cover no-repeat;box-shadow:0 1px 3px rgba(0,0,0,.18),inset 0 0 0 .5px rgba(0,0,0,.12);
+  display:grid;place-items:end start;padding:7px;color:var(--on-cover);font:600 11px/1.1 var(--sans);transition:transform .25s var(--ease);overflow:hidden}
+.cover.img{background-color:#fff}
+.cover.pending{background:var(--fill);color:var(--ink-3);place-items:center}
+.cover.pending svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cover.failed{background:var(--warn-soft);color:var(--warn);place-items:center}
+.meta{min-width:0;display:grid;gap:4px}
+.t{font:600 17px/1.25 var(--serif);letter-spacing:-.01em;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.v{color:var(--ink-2);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p{display:flex;align-items:center;gap:10px;color:var(--ink-3);font-size:12.5px;font-variant-numeric:tabular-nums}
+.bar{flex:none;width:64px;height:4px;border-radius:2px;background:var(--fill);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.tag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;background:var(--soft);color:var(--accent);font-size:11.5px;font-weight:600;width:max-content}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.rowbtn{display:none;flex:none;height:36px;padding:0 12px;border:0;border-radius:11px;background:var(--fill);color:var(--ink-2);font-size:13px;font-weight:600;cursor:pointer}
+.editing .rowbtn{display:inline-flex;align-items:center}
+.rowbtn.epub{display:inline-flex;align-items:center}
+.editing .rowbtn.epub{display:none}
+.empty{padding:26px 20px;border-radius:18px;background:var(--fill);color:var(--ink-2);font-size:15px}
+.empty b{display:block;color:var(--ink);font:600 17px/1.3 var(--serif);margin-bottom:6px}
+
+/* sheets */
+.scrim{position:fixed;inset:0;z-index:30;background:rgba(8,10,18,.34);opacity:0;pointer-events:none;transition:opacity .35s var(--ease)}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:31;margin:0 auto;max-width:640px;max-height:calc(100% - 40px - env(safe-area-inset-top,0px));
+  display:flex;flex-direction:column;background:var(--raised);border-radius:22px 22px 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.2);
+  padding-bottom:env(safe-area-inset-bottom,0px);transform:translateY(104%);visibility:hidden;transition:transform .45s var(--ease),visibility 0s .45s}
+.sheet.on{transform:none;visibility:visible;transition:transform .45s var(--ease),visibility 0s}
+.grab{flex:none;height:22px;display:grid;place-items:center}
+.grab::before{content:"";width:38px;height:5px;border-radius:3px;background:var(--rule)}
+.sheet header{flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 10px 20px}
+.sheet header h2{flex:1;margin:0;font-size:18px;font-weight:650;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.close{width:32px;height:32px;display:grid;place-items:center;border:0;border-radius:16px;background:var(--fill);color:var(--ink-2);cursor:pointer}
+.close svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;fill:none}
+.sheet .body{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:2px 20px 24px}
+.choice{display:flex;align-items:center;gap:14px;width:100%;padding:14px;margin:0 0 10px;border:0;border-radius:16px;background:var(--fill);text-align:left;cursor:pointer}
+.choice svg{flex:none;width:24px;height:24px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.choice b{display:block;font-size:15.5px}
+.choice span{display:block;color:var(--ink-2);font-size:13.5px;margin-top:2px}
+.field{display:flex;gap:8px;margin:6px 0 4px}
+.field input{flex:1;min-width:0;height:46px;padding:0 14px;border:1px solid var(--rule);border-radius:13px;background:var(--bg);font-size:16px;outline:none}
+.field input:focus{border-color:var(--accent)}
+.lbl{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin:18px 0 6px}
+.crumbs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 10px;color:var(--ink-2);font-size:14px}
+.crumbs button{border:0;background:none;padding:4px 2px;color:var(--accent);font-weight:600;cursor:pointer}
+.folders{list-style:none;margin:0 0 14px;padding:0;border-top:1px solid var(--rule)}
+.folders button{display:flex;align-items:center;gap:12px;width:100%;min-height:50px;padding:10px 4px;border:0;border-bottom:1px solid var(--rule);background:none;text-align:left;cursor:pointer;font-size:15.5px}
+.folders svg{flex:none;width:22px;height:22px;fill:none;stroke:var(--ink-3);stroke-width:1.7;stroke-linejoin:round}
+.folders .none{padding:16px 4px;color:var(--ink-3);font-size:14px;border-bottom:1px solid var(--rule)}
+.sheetfoot{display:grid;gap:10px}
+.kv{margin:0 0 16px;display:grid;gap:4px;font-size:14.5px}
+.kv span{color:var(--ink-3);font-size:12.5px}
+pre.cmd{margin:6px 0 4px;padding:12px 14px;border-radius:12px;background:var(--fill);font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
+.steps{margin:6px 0 0;padding-left:20px;display:grid;gap:8px;color:var(--ink-2);font-size:14.5px}
+.steps code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--fill);padding:1px 5px;border-radius:5px;word-break:break-all}
+
+/* reader */
+.reader{position:fixed;inset:0;z-index:40;background:var(--bg);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.reader iframe{display:block;width:100%;height:100%;border:0;background:var(--bg)}
+.loading{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;color:var(--ink-2);font-size:15px}
+.spinner{width:28px;height:28px;border-radius:50%;border:3px solid var(--fill);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.back{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));display:flex;align-items:center;gap:4px;height:38px;
+  padding:0 14px 0 8px;border:0;border-radius:19px;background:var(--ink);color:var(--bg);font-weight:600;font-size:14px;box-shadow:var(--shadow);cursor:pointer}
+.back svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:50;transform:translate(-50%,16px);opacity:0;visibility:hidden;
+  width:min(calc(100% - 32px),480px);display:flex;align-items:center;gap:12px;padding:13px 10px 13px 16px;border-radius:16px;background:var(--ink);color:var(--bg);
+  font-size:14.5px;line-height:1.35;box-shadow:var(--shadow);transition:transform .4s var(--ease),opacity .3s,visibility 0s .4s}
+.toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .4s var(--ease),opacity .3s}
+.toast span{flex:1;min-width:0}
+.toast button{flex:none;height:34px;padding:0 13px;border:0;border-radius:10px;background:var(--bg);color:var(--ink);font-weight:600;font-size:14px;cursor:pointer}
+.drop{position:fixed;inset:0;z-index:35;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 84%,transparent);
+  font:600 20px var(--serif);color:var(--accent);border:3px dashed var(--accent);pointer-events:none}
+.pick{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<!-- signed out -->
+<main class="wrap welcome" id="welcome" hidden>
+  <div class="mark" aria-hidden="true"><svg viewBox="0 0 34 34"><rect x="8" y="5" width="18" height="24" rx="3" fill="#fff"/><path d="M12 11h10M12 15h10M12 19h7" stroke="#26235E" stroke-width="2" stroke-linecap="round"/></svg></div>
+  <h1>Paper to Phone</h1>
+  <p class="lede">Research papers reflowed for your phone, with every figure, table and reference. Your library lives in your own OneDrive.</p>
+  <ul class="points">
+    <li><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Drop a PDF or a link from any device; it shows up here, ready to read.</li>
+    <li><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>Your place, theme and text size follow you between phone and computer.</li>
+    <li><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Papers stay in your OneDrive. This app has no server and keeps nothing.</li>
+  </ul>
+  <div class="stack" id="signin-box">
+    <button class="primary" id="signin" type="button">Sign in with Microsoft</button>
+    <button class="link" id="demo" type="button">Try it first with a sample paper</button>
+  </div>
+  <div class="stack" id="setup-box" hidden>
+    <p class="fine"><b>One-time setup.</b> This copy of the app needs a Microsoft app ID before anyone can sign in. Paste it here once; the steps are in the README.</p>
+    <div class="field"><input id="clientid" placeholder="Application (client) ID" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="quiet small" id="save-id" type="button">Save</button></div>
+    <button class="link" id="demo2" type="button">Try it first with a sample paper</button>
+  </div>
+  <p class="fine">Works with personal Microsoft accounts and with work or school accounts that allow it.</p>
+</main>
+
+<!-- signed in -->
+<main class="wrap" id="app" hidden>
+  <div class="top">
+    <h1>Your papers</h1>
+    <button class="who" id="who" type="button" aria-label="Account and folder">?</button>
+  </div>
+  <div class="status" id="status"><span class="dot off" id="dot"></span><span id="status-text">Not synced yet</span></div>
+  <div class="actions">
+    <button class="primary" id="add" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add a paper</button>
+    <button class="quiet" id="edit" type="button" aria-pressed="false">Edit</button>
+  </div>
+  <section class="group" id="g-wait" hidden>
+    <h2>Converting</h2>
+    <p class="hint" id="wait-hint">Your computer converts these while it's on and running Paper to Phone.</p>
+    <ul class="list" id="wait"></ul>
+  </section>
+  <section class="group" id="g-bad" hidden>
+    <h2>Needs attention</h2>
+    <ul class="list" id="bad"></ul>
+  </section>
+  <section class="group" id="g-lib">
+    <ul class="list" id="lib"></ul>
+  </section>
+</main>
+
+<input class="pick" id="pick" type="file" accept=".pdf,.html,.htm,application/pdf,text/html" multiple>
+
+<div class="reader" id="reader" hidden>
+  <iframe id="frame" title="Paper"></iframe>
+  <div class="loading" id="loading" hidden><div class="spinner"></div><span id="loading-text">Opening</span></div>
+  <button class="back" id="back" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>Papers</button>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<section class="sheet" id="s-add" role="dialog" aria-modal="true" aria-labelledby="h-add">
+  <div class="grab"></div><header><h2 id="h-add">Add a paper</h2><button class="close" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></header>
+  <div class="body">
+    <button class="choice" id="choose-file" type="button"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+      <span><b>Choose a file</b><span>A PDF goes to your Inbox to convert. A reader file (.html) is ready right away.</span></span></button>
+    <label class="lbl" for="link">Link, DOI or arXiv id</label>
+    <div class="field"><input id="link" type="url" inputmode="url" placeholder="https://… or 10.1038/…" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="quiet small" id="paste" type="button">Paste</button></div>
+    <button class="primary" id="add-link" type="button" style="width:100%;margin-top:10px" disabled>Add link</button>
+    <p class="fine" style="margin-top:14px">Your computer downloads linked papers, so journals you reach through your library work when it's on that network. You can also paste a copied PDF anywhere on this screen.</p>
+  </div>
+</section>
+
+<section class="sheet" id="s-folder" role="dialog" aria-modal="true" aria-labelledby="h-folder">
+  <div class="grab"></div><header><h2 id="h-folder">Choose your folder</h2><button class="close" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></header>
+  <div class="body">
+    <p class="fine" style="margin:0 0 12px">Papers, reading positions and settings are kept in this folder. Pick an existing Paper to Phone folder, or create one.</p>
+    <div class="crumbs" id="crumbs"></div>
+    <ul class="folders" id="folders"></ul>
+    <div class="sheetfoot">
+      <button class="primary" id="use-folder" type="button">Use this folder</button>
+      <button class="quiet" id="new-folder" type="button">Create “Paper to Phone” here</button>
+    </div>
+  </div>
+</section>
+
+<section class="sheet" id="s-account" role="dialog" aria-modal="true" aria-labelledby="h-account">
+  <div class="grab"></div><header><h2 id="h-account">Account</h2><button class="close" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></header>
+  <div class="body">
+    <div class="kv"><span>Signed in as</span><b id="acct-name"></b></div>
+    <div class="kv"><span>Folder</span><b id="acct-folder"></b></div>
+    <div class="sheetfoot">
+      <button class="quiet" id="change-folder" type="button">Change folder</button>
+      <button class="quiet" id="how" type="button">Set up conversion on a computer</button>
+      <button class="quiet" id="signout" type="button">Sign out</button>
+    </div>
+  </div>
+</section>
+
+<section class="sheet" id="s-how" role="dialog" aria-modal="true" aria-labelledby="h-how">
+  <div class="grab"></div><header><h2 id="h-how">Conversion on a computer</h2><button class="close" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></header>
+  <div class="body">
+    <p class="fine" style="margin:0">PDFs and links you add land in the Inbox of your folder. A Mac or PC with OneDrive turns them into reader files. Set it up once:</p>
+    <ol class="steps">
+      <li>Install Python 3 and PyMuPDF: <code>pip3 install pymupdf</code></li>
+      <li>Download <a id="conv-link" href="converter/paper2phone.py" download>paper2phone.py</a>.</li>
+      <li>Run it once with your synced folder:<pre class="cmd" id="cmd"></pre><button class="quiet small" id="copy-cmd" type="button">Copy command</button></li>
+    </ol>
+    <p class="fine" style="margin-top:14px">It starts by itself at login. New papers appear here within a minute of syncing. Claude can convert papers too: save its reader file into the folder's Library.</p>
+  </div>
+</section>
+
+<section class="sheet" id="s-note" role="dialog" aria-modal="true" aria-labelledby="h-note">
+  <div class="grab"></div><header><h2 id="h-note">Could not convert</h2><button class="close" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></header>
+  <div class="body"><p class="fine" id="note-text" style="white-space:pre-wrap;color:var(--ink-2);font-size:14.5px"></p>
+    <div class="sheetfoot"><button class="quiet" id="note-retry" type="button">Try again</button><button class="quiet" id="note-remove" type="button">Remove</button></div></div>
+</section>
+
+<div class="drop" id="drop" hidden>Drop PDFs or reader files to add them</div>
+<div class="toast" id="toast" role="status"><span id="toast-text"></span><button id="toast-btn" type="button" hidden></button></div>
+
+<script src="config.js"></script>
+<script src="vendor/msal-browser-4.30.0.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
