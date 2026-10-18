@@ -665,11 +665,25 @@
     navigator.clipboard.readText().then(function (t) { $('link').value = (t || '').trim(); $('add-link').disabled = !isRef($('link').value); if (!t) toast('The clipboard is empty, or holds a file. To add a copied PDF, paste it on this screen.'); },
       function () { $('link').focus(); toast('Long-press the field and choose Paste.'); });
   });
+  var PASTE_HINT = 'Long-press here and choose Paste';
+  $('pastebox').addEventListener('input', function () { $('pastebox').textContent = PASTE_HINT; });   // never keep typed text
+  $('pastebox').addEventListener('blur', function () { $('pastebox').textContent = PASTE_HINT; });
   D.addEventListener('paste', function (e) {
     if (!$('reader').hidden || !drive || !folder) return;
     var cd = e.clipboardData;
     if (!cd) return;
-    if (cd.files && cd.files.length) { e.preventDefault(); addFiles(cd.files); return; }
+    var files = Array.prototype.slice.call(cd.files || []);
+    if (!files.length && cd.items) {
+      Array.prototype.forEach.call(cd.items, function (it) { if (it.kind === 'file') { var f = it.getAsFile(); if (f) files.push(f); } });
+    }
+    if (files.length) { e.preventDefault(); addFiles(files); return; }
+    if (D.activeElement === $('pastebox')) {
+      e.preventDefault();
+      var t0 = (cd.getData('text') || '').trim();
+      if (isRef(t0)) { addLink(t0); return; }
+      toast('The clipboard has no PDF. Copy the PDF first (Share, then Copy), or add it with Choose a file.');
+      return;
+    }
     var t = (cd.getData('text') || '').trim();
     if (D.activeElement === $('link')) return;
     if (isRef(t)) { e.preventDefault(); $('link').value = t; $('add-link').disabled = false; showSheet('s-add'); }
