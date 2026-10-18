@@ -2903,7 +2903,7 @@ mark.hl mark.hl{background:none}
   font:400 15px/1.45 var(--serif);color:var(--ink)}
 .hlitem .hn{display:block;margin-top:5px;padding-left:14px;font-size:13.5px;color:var(--ink-2);white-space:pre-line}
 @media print{.selbar{display:none}mark.hl{background:#FFE58A}}'''
-READER_JS = r'''/* p2p-reader 2 */
+READER_JS = r'''/* p2p-reader 3 */
 (function () {
   'use strict';
   var D = document, R = D.documentElement, W = window;
@@ -3417,7 +3417,7 @@ READER_JS = r'''/* p2p-reader 2 */
     for (var i = 0; i < heads.length; i++) { if (heads[i].getBoundingClientRect().top < 150) cur = heads[i]; else break; }
     return cur;
   }
-  function tick() {
+  function tick(quiet) {
     ticking = false;
     var y = W.scrollY, max = maxScroll(), p = Math.min(1, Math.max(0, y / max));
     ring.style.strokeDashoffset = C * (1 - p);
@@ -3430,24 +3430,72 @@ READER_JS = r'''/* p2p-reader 2 */
       else if (y < lastY - 8 || y >= max - 80) dock.classList.remove('hide');
     }
     lastY = y;
-    clearTimeout(saveT);
-    saveT = setTimeout(function () { save(KEY, { p: p, h: cur ? cur.textContent : '', t: Date.now() }); }, 700);
+    if (quiet !== true) { clearTimeout(saveT); saveT = setTimeout(savePos, 400); }
   }
   W.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(tick); } }, { passive: true });
+
+  /* Your place is saved as the paragraph at the reading line and how far into it you were, plus the
+     fraction of the paper as a fallback. Text size, figures loading late or a different screen no
+     longer move you to the wrong paragraph. */
+  var ASEL = 'p, h1, h2, h3, h4, figure, li, .tbl, .box, .eq, blockquote';
+  var ANCH = $$(ASEL, paper).filter(function (e) { return !e.querySelector(ASEL); });
+  var settled = false;                                    // nothing is saved until the reopened place holds
+  function readLine() { return Math.min(140, W.innerHeight / 3); }
+  function spot() {
+    var L = readLine(), el = D.elementFromPoint(W.innerWidth / 2, L), i = -1;
+    el = el && el.closest ? el.closest(ASEL) : null;
+    if (el) i = ANCH.indexOf(el);
+    if (i < 0) for (var k = 0; k < ANCH.length; k++) if (ANCH[k].getBoundingClientRect().bottom > L) { i = k; break; }
+    if (i < 0) return null;
+    var r = ANCH[i].getBoundingClientRect();
+    return { a: i, o: Math.max(0, Math.min(1, (L - r.top) / Math.max(1, r.height))), x: norm(ANCH[i].textContent).slice(0, 32) };
+  }
+  var closing = false;
+  function savePos() {
+    clearTimeout(saveT);
+    // not before the reopened place holds, not after leaving, and not while hidden (a hidden page measures as the top)
+    if (!settled || closing || !W.innerHeight || !R.clientHeight) return;
+    var p = Math.min(1, Math.max(0, W.scrollY / maxScroll())), cur = current(), sp = p > 0.002 ? spot() : null;
+    var rec = { p: p, h: cur ? cur.textContent : '', t: Date.now() };
+    if (sp) { rec.a = sp.a; rec.o = Math.round(sp.o * 1000) / 1000; rec.x = sp.x; }
+    save(KEY, rec);
+  }
+  D.addEventListener('visibilitychange', function () { if (D.visibilityState === 'hidden') savePos(); });
+  W.addEventListener('pagehide', savePos);
   $('#where').addEventListener('click', function () { openContents(false); });
   $('#find').addEventListener('click', function () { openContents(true); });
   $('#aa').addEventListener('click', function () { showSheet('settings'); });
 
-  var toast = $('#toast'), last = load(KEY, null);
-  if (last && last.p > 0.03 && last.p < 0.97) {
-    $('small', toast).textContent = (last.h ? last.h + ', ' : '') + Math.round(last.p * 100) + '% read';
-    setTimeout(function () { toast.classList.add('on'); }, 500);
-    var hideToast = setTimeout(function () { toast.classList.remove('on'); }, 9000);
-    $('.go', toast).addEventListener('click', function () {
-      clearTimeout(hideToast); toast.classList.remove('on');
-      scrollTo(last.p * maxScroll());
-    });
+  var toast = $('#toast'), last = load(KEY, null), hideToast = null;
+  function target(rec) {
+    var el = typeof rec.a === 'number' ? ANCH[rec.a] : null;
+    if (el && rec.x && norm(el.textContent).slice(0, 32) !== rec.x) el = null;      // the paper changed: use the fraction
+    if (el) { var r = el.getBoundingClientRect(); return r.top + W.scrollY + (rec.o || 0) * r.height - readLine(); }
+    return rec.p * maxScroll();
+  }
+  function resumePlace() {                                // reopen where you left off, without asking
+    if (!last || !(last.p > 0.02 && last.p < 0.98)) { settled = true; return; }
+    var stop = false, EVS = ['touchstart', 'wheel', 'keydown', 'mousedown'];
+    function go() { if (!stop) W.scrollTo(0, Math.max(0, target(last))); }
+    function quit() {
+      if (stop) return;
+      stop = true; settled = true;
+      EVS.forEach(function (ev) { W.removeEventListener(ev, quit, true); });
+    }
+    EVS.forEach(function (ev) { W.addEventListener(ev, quit, true); });
+    go();
+    // figures finish decoding after the first layout and push text down: hold the paragraph in place meanwhile
+    $$('img', paper).forEach(function (im) { if (!im.complete) im.addEventListener('load', go); });
+    [100, 350, 800, 1500, 2400].forEach(function (ms) { setTimeout(go, ms); });
+    setTimeout(quit, 2600);
+    $('b', toast).textContent = 'Back where you left off';
+    $('small', toast).textContent = (last.h ? last.h + ' \u00b7 ' : '') + Math.round(last.p * 100) + '% read';
+    var over = $('.go', toast);
+    over.textContent = 'Start over';
+    over.addEventListener('click', function () { quit(); clearTimeout(hideToast); toast.classList.remove('on'); scrollTo(0); });
     $('.x', toast).addEventListener('click', function () { clearTimeout(hideToast); toast.classList.remove('on'); });
+    setTimeout(function () { toast.classList.add('on'); }, 300);
+    hideToast = setTimeout(function () { toast.classList.remove('on'); }, 5000);
   }
 
   /* ---------- captions, authors and tables that need a second look ---------- */
@@ -3762,14 +3810,15 @@ READER_JS = r'''/* p2p-reader 2 */
     lib.setAttribute('aria-label', 'Back to your papers');
     lib.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>';
     dock.insertBefore(lib, dock.firstChild);
-    lib.addEventListener('click', function () { W.parent.postMessage({ type: 'p2p', close: true }, '*'); });
+    lib.addEventListener('click', function () { savePos(); closing = true; W.parent.postMessage({ type: 'p2p', close: true }, '*'); });
     W.parent.postMessage({ type: 'p2p', ready: true }, '*');
   }
 
   applyPrefs(false);
   clampAll();
   tables(D);
-  tick();
+  tick(true);
+  resumePlace();
   W.addEventListener('resize', function () { clampAll(); tables(D); });
 })();'''
 # READER>>
@@ -4204,7 +4253,7 @@ def write_html(paper, path):
 <button class="ibtn aa" id="aa" type="button" aria-label="Reading settings">Aa</button>
 </nav>
 <button class="back" id="back" type="button">{ICONS["back"]}Back to where you were</button>
-<div class="toast" id="toast" role="status"><span><b>Pick up where you left off</b><small></small></span><button class="go" type="button">Continue</button><button class="x" type="button" aria-label="Dismiss">{ICONS["close"]}</button></div>
+<div class="toast" id="toast" role="status"><span><b>Back where you left off</b><small></small></span><button class="go" type="button">Start over</button><button class="x" type="button" aria-label="Dismiss">{ICONS["close"]}</button></div>
 <div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Figure viewer" aria-hidden="true">
 <div class="stage"><img alt=""/></div>
 <div class="vtop"><button class="vbtn vclose" type="button" aria-label="Close viewer">{ICONS["close"]}</button><div class="t"><b></b><small></small></div><span class="vbtn ghost"></span></div>

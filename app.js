@@ -478,6 +478,7 @@
   if (!state.notes) state.notes = {};
 
   /* Highlights merge item by item: the newer edit wins, and a removal beats edits made before it. */
+  function posRec(o) { return { p: o.p, h: o.h, t: o.t, a: o.a, o: o.o, x: o.x }; }   // a reading place, paragraph included
   function mergeNotes(a, b) {
     a = a || {}; b = b || {};
     var out = { items: {}, gone: Object.assign({}, a.gone || {}) };
@@ -504,7 +505,7 @@
       if (!l || (r.t || 0) > (l.t || 0)) state.papers[k] = Object.assign({}, l || {}, r);
       else if (r.opened && (!l.opened || r.opened > l.opened)) l.opened = r.opened;
       var pos = ls('p2p:pos:' + k, null);           // the reader resumes from this key
-      if (r.t && (!pos || (pos.t || 0) < r.t)) lsSet('p2p:pos:' + k, { p: r.p, h: r.h, t: r.t });
+      if (r.t && (!pos || (pos.t || 0) < r.t)) lsSet('p2p:pos:' + k, posRec(r));
     });
     Object.keys(remote.notes || {}).forEach(function (k) {
       state.notes[k] = mergeNotes(state.notes[k], remote.notes[k]);
@@ -524,7 +525,7 @@
       var k = state.meta[name].key;
       if (!k) return;
       var pos = ls('p2p:pos:' + k, null), cur = state.papers[k];
-      if (pos && pos.t && (!cur || (cur.t || 0) < pos.t)) { state.papers[k] = Object.assign({}, cur || {}, { p: pos.p, h: pos.h, t: pos.t }); changed = true; }
+      if (pos && pos.t && (!cur || (cur.t || 0) < pos.t)) { state.papers[k] = Object.assign({}, cur || {}, posRec(pos)); changed = true; }
       var hl = ls('p2p:hl:' + k, null);
       if (hl) {
         var m = mergeNotes(state.notes[k], hl);
@@ -848,7 +849,7 @@
       if (m && m.key) {
         state.meta[p.item.name] = { key: m.key, title: m.title, venue: m.venue, authors: m.authors, minutes: m.minutes };
         var sp = state.papers[m.key], pos = ls('p2p:pos:' + m.key, null);
-        if (sp && sp.t && (!pos || (pos.t || 0) < sp.t)) lsSet('p2p:pos:' + m.key, { p: sp.p, h: sp.h, t: sp.t });
+        if (sp && sp.t && (!pos || (pos.t || 0) < sp.t)) lsSet('p2p:pos:' + m.key, posRec(sp));
         state.papers[m.key] = Object.assign({}, sp || {}, { opened: Date.now() });
         lsSet('p2p:state', state);
         thumbFrom(m.img, p.item.name);
