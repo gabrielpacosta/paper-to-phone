@@ -72,6 +72,7 @@ _TRANS = str.maketrans({
     " ": " ", " ": " ", " ": " ", " ": " ", " ": " ",
     "​": "", "﻿": "",
 })
+_TRANS_KEEP_SHY = {k: v for k, v in _TRANS.items() if k != 0xAD}   # soft hyphens are resolved per line below
 BOLD_RE = re.compile(r"bold|semibold|black|heavy|demi", re.I)
 HEAVY_RE = re.compile(r"bold|semibold|black|heavy|demi|medium", re.I)
 ITALIC_RE = re.compile(r"italic|oblique", re.I)
@@ -271,8 +272,15 @@ def extract_lines(page, pno, textpage=None):
             continue
         first = True
         for ln in b["lines"]:
-            spans = [Span(s["text"].translate(_TRANS), s["font"], s["size"], s["flags"], s["origin"],
+            spans = [Span(s["text"].translate(_TRANS_KEEP_SHY), s["font"], s["size"], s["flags"], s["origin"],
                           s["bbox"][0], s["bbox"][2]) for s in ln["spans"]]
+            # a soft hyphen ending the line is a word break ("inflam\xad" + "mation"); anywhere else it is invisible
+            vis = [s for s in spans if s.text.strip()]
+            for s in spans:
+                if vis and s is vis[-1] and s.text.rstrip().endswith("\xad"):
+                    s.text = s.text.rstrip()[:-1].replace("\xad", "") + "-"
+                else:
+                    s.text = s.text.replace("\xad", "")
             spans = [s for s in spans if s.text]
             spans = strip_line_number(spans)
             if spans and any(s.text.strip() for s in spans):

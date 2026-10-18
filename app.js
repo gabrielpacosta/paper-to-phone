@@ -155,6 +155,13 @@
         });
       });
     },
+    readBytes: function (it) {
+      var self = this;
+      return self.item(it.id).then(function (x) { return fetch(x.download, { cache: 'no-store' }); }).then(function (r) {
+        if (!r.ok) throw httpError(r, '');
+        return r.arrayBuffer();
+      });
+    },
     put: function (parentId, name, body, type, etag) {
       var h = { 'Content-Type': type || 'application/octet-stream' };
       if (etag) h['If-Match'] = etag;
@@ -231,7 +238,7 @@
     add(lib.id, '.library.json', false, JSON.stringify([{ title: 'The impact of cannabidiol (CBD) in hyperglycemic zebrafish (Danio rerio)',
         authors: 'Elizabeth McCarthy, Leehy Gertner, Justin Ciocirlan, Victoria P. Connaughton', venue: 'PLOS One', year: '2026',
         html: 'McCarthy 2026 - The impact of cannabidiol (CBD) in hyperglycemic zebrafish (Danio rerio).html', epub: '', thumb: W.P2P_DEMO_THUMB || '' }]));
-    add(inbox.id, 'Smith 2026 cannabis and pain.pdf', false, null, { size: 2400000 });
+    add(inbox.id, 'Smith 2026 cannabis and pain.pdf', false, null, { size: 2400000, fake: true });
     add(bad.id, 'Link 2026-10-18.txt', false, 'https://www.example.org/paywalled-article');
     add(bad.id, 'Link 2026-10-18 (what went wrong).txt', false,
         'https://www.example.org/paywalled-article\n  Could not get a PDF from that link. If the paper needs a library login, download the PDF in your browser and add the file instead.');
@@ -259,11 +266,186 @@
         return Promise.resolve(copy(add(pid, name, false, body)));
       },
       upload: function (pid, name, blob) { return this.put(pid, name, blob, blob.type, false); },
+      readBytes: function (it) {
+        var x = store[it.id];
+        if (x.content && x.content.arrayBuffer) return x.content.arrayBuffer();
+        return Promise.reject(new Error('This sample file has no content.'));
+      },
       remove: function (id) { delete store[id]; return Promise.resolve(); },
       move: function (id, pid) { store[id].parentId = pid; return Promise.resolve(copy(store[id])); },
       appGet: function () { return Promise.resolve(null); },
       appPut: function () { return Promise.resolve(); }
     };
+  }
+
+  /* ---------- papers kept only on this device (no account) ---------- */
+  function LocalDrive() {
+    var db = null;
+    function tx(mode) { return db.transaction('items', mode).objectStore('items'); }
+    function req(r) { return new Promise(function (res, rej) { r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); }; }); }
+    function meta(x) {
+      return { id: x.id, name: x.name, folder: !!x.folder, size: x.size || 0, modified: x.modified, etag: x.etag, parentId: x.parentId };
+    }
+    function all() { return req(tx('readonly').getAll()); }
+    function find(pid, name) { return all().then(function (xs) { return xs.filter(function (x) { return x.parentId === pid && x.name === name; })[0] || null; }); }
+    function save(x) { x.etag = 'l' + Date.now() + Math.random().toString(36).slice(2, 6); x.modified = new Date().toISOString(); return req(tx('readwrite').put(x)).then(function () { return meta(x); }); }
+    var api = {
+      local: true,
+      init: function () {
+        return new Promise(function (res, rej) {
+          var r = indexedDB.open('paper-to-phone-local', 1);
+          r.onupgradeneeded = function () { r.result.createObjectStore('items', { keyPath: 'id' }); };
+          r.onsuccess = function () { db = r.result; res(); };
+          r.onerror = function () { rej(r.error || new Error('This browser is not letting the app store papers.')); };
+        }).then(function () {
+          return find(null, 'root').then(function (root) {
+            if (root) return;
+            return save({ id: 'root', parentId: null, name: 'root', folder: true }).then(function () {
+              return save({ id: 'home', parentId: 'root', name: 'Paper to Phone', folder: true });
+            });
+          });
+        }).then(function () { return api.mkdir('home', 'Library'); }).then(function () { return api.mkdir('home', 'Inbox'); });
+      },
+      home: { id: 'home', name: 'Paper to Phone' },
+      me: function () { return Promise.resolve({ name: 'This device', email: '' }); },
+      root: function () { return Promise.resolve({ id: 'root', name: 'This device' }); },
+      children: function (id) { return all().then(function (xs) { return xs.filter(function (x) { return x.parentId === id; }).map(meta); }); },
+      item: function (id) { return req(tx('readonly').get(id)).then(function (x) { if (!x) throw Object.assign(new Error('gone'), { status: 404 }); return meta(x); }); },
+      child: function (pid, name) { return find(pid, name).then(function (x) { return x ? meta(x) : null; }); },
+      mkdir: function (pid, name) {
+        return find(pid, name).then(function (x) {
+          return x ? meta(x) : save({ id: 'f' + Date.now() + Math.random().toString(36).slice(2, 8), parentId: pid, name: name, folder: true });
+        });
+      },
+      readText: function (it) {
+        return req(tx('readonly').get(it.id)).then(function (x) {
+          if (!x) throw new Error('gone');
+          return x.blob && x.blob.text ? x.blob.text() : String(x.text || '');
+        });
+      },
+      readBytes: function (it) {
+        return req(tx('readonly').get(it.id)).then(function (x) {
+          if (!x || !x.blob) throw new Error('gone');
+          return x.blob.arrayBuffer();
+        });
+      },
+      put: function (pid, name, body, type, etag) {
+        return find(pid, name).then(function (hit) {
+          if (hit && etag && etag !== hit.etag) throw Object.assign(new Error('changed'), { conflict: true });
+          var blob = body instanceof Blob ? body : new Blob([body], { type: type || 'text/plain' });
+          if (hit && etag === false) {
+            var m = name.match(/^(.*?)(\.[^.]+)?$/), k = 1;
+            return all().then(function (xs) {
+              var taken = {}; xs.forEach(function (x) { if (x.parentId === pid) taken[x.name] = 1; });
+              while (taken[m[1] + ' ' + k + (m[2] || '')]) k++;
+              return save({ id: 'i' + Date.now() + Math.random().toString(36).slice(2, 8), parentId: pid, name: m[1] + ' ' + k + (m[2] || ''), blob: blob, size: blob.size });
+            });
+          }
+          var rec = hit ? Object.assign(hit, { blob: blob, size: blob.size, text: null }) :
+            { id: 'i' + Date.now() + Math.random().toString(36).slice(2, 8), parentId: pid, name: name, blob: blob, size: blob.size };
+          return save(rec);
+        });
+      },
+      upload: function (pid, name, blob) { return api.put(pid, name, blob, blob.type, false); },
+      remove: function (id) { return req(tx('readwrite').delete(id)); },
+      move: function (id, pid) { return req(tx('readonly').get(id)).then(function (x) { if (!x) throw Object.assign(new Error('gone'), { status: 404 }); x.parentId = pid; return save(x); }); },
+      appGet: function () { return Promise.resolve(null); },
+      appPut: function () { return Promise.resolve(); },
+      wipe: function () { db.close(); return new Promise(function (res) { var r = indexedDB.deleteDatabase('paper-to-phone-local'); r.onsuccess = r.onerror = r.onblocked = function () { res(); }; }); }
+    };
+    return api;
+  }
+
+  /* ---------- converting PDFs on this device ---------- */
+  var conv = { worker: null, jobs: {}, n: 0, active: null, skip: {} };
+  function converter() {
+    if (conv.worker) return conv.worker;
+    conv.worker = new Worker('convert-worker.js');
+    conv.worker.onmessage = function (e) {
+      var j = conv.jobs[e.data.id];
+      if (!j) return;
+      if (e.data.type === 'progress') { j.progress(e.data.text); return; }
+      delete conv.jobs[e.data.id];
+      if (e.data.type === 'done') j.resolve(e.data); else j.reject(Object.assign(new Error(e.data.message), { converter: true }));
+    };
+    conv.worker.onerror = function (e) {
+      Object.keys(conv.jobs).forEach(function (k) { conv.jobs[k].reject(new Error((e && e.message) || 'The converter stopped.')); delete conv.jobs[k]; });
+      conv.worker = null;
+    };
+    return conv.worker;
+  }
+  function convertBytes(name, buf, progress) {
+    return new Promise(function (resolve, reject) {
+      var id = ++conv.n;
+      conv.jobs[id] = { resolve: resolve, reject: reject, progress: progress || function () {} };
+      converter().postMessage({ id: id, name: name, bytes: buf }, [buf]);
+    });
+  }
+  var wake = null;
+  function stayAwake(on) {
+    try {
+      if (on && !wake && navigator.wakeLock) navigator.wakeLock.request('screen').then(function (l) { wake = l; }).catch(function () {});
+      if (!on && wake) { wake.release(); wake = null; }
+    } catch (e) {}
+  }
+  var processing = false;
+  function processInbox() {
+    if (processing || !drive || !sub.inbox) return;
+    var x = view.wait.filter(function (w) { return /\.pdf$/i.test(w.name) && !w.fake && !conv.skip[w.id]; })[0];
+    if (!x) return;
+    processing = true;
+    conv.active = { id: x.id, name: x.name, size: x.size, status: 'Starting' };
+    stayAwake(true);
+    render();
+    function status(t) { if (conv.active) { conv.active.status = t; renderActive(); } }
+    var made = [];
+    var orig = sub.orig ? Promise.resolve(sub.orig) : drive.mkdir(folder.id, 'Originals').then(function (o) { sub.orig = o; return o; });
+    orig.then(function (o) { return drive.move(x.id, o.id); })            // claim it, so another device does not convert it too
+      .then(function () { status('Reading the PDF'); return drive.readBytes(x); })
+      .then(function (buf) { return convertBytes(x.name, buf, status); })
+      .then(function (res) {
+        status('Saving');
+        return res.files.reduce(function (chain, f) {
+          return chain.then(function () {
+            var html = /\.html?$/i.test(f.name);
+            return drive.upload(sub.lib.id, f.name, new Blob([f.data], { type: html ? 'text/html' : 'application/epub+zip' })).then(function (it) {
+              made.push(it);
+              if (html) return new Blob([f.data]).text().then(function (t) {
+                cachePut({ id: it.id, etag: it.etag, html: t });
+                var m = parseMeta(t);
+                if (m && m.key) { state.meta[it.name] = { key: m.key, title: m.title, venue: m.venue, authors: m.authors, minutes: m.minutes }; thumbFrom(m.img, it.name); lsSet('p2p:state', state); }
+              });
+            });
+          });
+        }, Promise.resolve()).then(function () { return res; });
+      })
+      .then(function (res) {
+        if (drive.local) drive.remove(x.id);                               // on this device only: keep the reader, drop the PDF
+        var html = made.filter(function (it) { return /\.html?$/i.test(it.name); })[0];
+        toast('Ready: ' + (res.title || stem(x.name)), 'Open', function () {
+          var p = view.lib.filter(function (q) { return html && q.item.id === html.id; })[0];
+          if (p) openPaper(p);
+        }, 9000);
+      })
+      .catch(function (e) {
+        console.error(e);
+        conv.skip[x.id] = true;
+        var why = e && e.converter ? e.message : (e && e.friendly) || 'The converter could not run on this device.';
+        var bad = sub.bad ? Promise.resolve(sub.bad) : drive.mkdir(folder.id, 'Could not convert').then(function (b) { sub.bad = b; return b; });
+        return bad.then(function (b) {
+          return drive.move(x.id, b.id).then(function () {
+            return drive.put(b.id, stem(x.name) + ' (what went wrong).txt', x.name + ' could not be converted on this device.\n\n' + why + '\n', 'text/plain');
+          });
+        }).catch(function () {}).then(function () { toast('\u201c' + stem(x.name) + '\u201d could not be converted. See Needs attention.'); });
+      })
+      .then(function () {
+        processing = false; conv.active = null; stayAwake(false);
+        (function again() { if (syncing) setTimeout(again, 700); else refresh(true); })();
+      });
+  }
+  function renderActive() {
+    var el = D.getElementById('active-status');
+    if (el && conv.active) el.textContent = conv.active.status;
   }
 
   /* ---------- papers cached on this device for offline reading ---------- */
@@ -356,7 +538,8 @@
   /* ---------- reading the folder ---------- */
   function setStatus(kind, text) { $('dot').className = 'dot' + (kind ? ' ' + kind : ''); $('status-text').textContent = text; }
   function syncedLabel() {
-    if (drive && drive.demo) return setStatus('', 'Sample library. Sign in to use your OneDrive.');
+    if (drive && drive.demo) return setStatus('', 'Sample library. Papers you add here vanish when you leave.');
+    if (drive && drive.local) return setStatus('', 'Kept on this device. Nothing is uploaded.');
     if (!navigator.onLine) return setStatus('off', 'Offline. Saved papers still open.');
     if (!lastSync) return;
     var s = Math.round((Date.now() - lastSync) / 1000);
@@ -366,9 +549,9 @@
 
   function refresh(quiet) {
     if (!drive || !folder || syncing) return Promise.resolve();
-    if (!navigator.onLine) { syncedLabel(); return Promise.resolve(); }
+    if (!navigator.onLine && !drive.local) { syncedLabel(); return Promise.resolve(); }
     syncing = true;
-    if (!quiet) setStatus('busy', 'Syncing with OneDrive');
+    if (!quiet) setStatus('busy', drive.local ? 'Updating' : 'Syncing with OneDrive');
     return drive.children(folder.id).then(function (kids) {
       function find(n) { return kids.filter(function (k) { return k.folder && k.name.toLowerCase() === n.toLowerCase(); })[0] || null; }
       sub.dot = find('.paper2phone'); sub.bad = find('Could not convert'); sub.orig = find('Originals');
@@ -415,9 +598,10 @@
       lastSync = Date.now();
       render();
       syncedLabel();
-      return pushState();
+      setTimeout(processInbox, 0);
+      return drive.local ? null : pushState();
     }).catch(function (e) {
-      setStatus('bad', 'Could not reach OneDrive. Showing saved papers.');
+      setStatus('bad', drive && drive.local ? 'Could not read your papers on this device.' : 'Could not reach OneDrive. Showing saved papers.');
       if (e && e.status === 404) { toast('That folder is gone. Choose your folder again.'); folder = null; lsDel('p2p:folder'); openFolderPicker(); }
       console.error(e);
     }).then(function () { syncing = false; });
@@ -447,11 +631,18 @@
     lib.innerHTML = '';
     papers.forEach(function (x) { lib.appendChild(paperRow(x.p, x.m)); });
     if (!papers.length) {
-      lib.innerHTML = '<li class="empty"><b>No papers yet</b>Tap Add a paper to choose a PDF or paste a link. Reader files saved to the Library folder from any device appear here too.</li>';
+      lib.innerHTML = conv.active ? '' : drive && drive.local ?
+        '<li class="empty"><b>No papers yet</b>Tap Add a paper to pick a PDF from Files, paste a copied PDF, or add an arXiv link.</li>' :
+        '<li class="empty"><b>No papers yet</b>Tap Add a paper to choose a PDF or paste a link. Reader files saved to the Library folder from any device appear here too.</li>';
     }
     wait.innerHTML = '';
-    view.wait.forEach(function (x) { wait.appendChild(waitRow(x)); });
-    $('g-wait').hidden = !view.wait.length;
+    if (conv.active) wait.appendChild(activeRow(conv.active));
+    var rest = view.wait.filter(function (x) { return !conv.active || x.id !== conv.active.id; });
+    rest.forEach(function (x) { wait.appendChild(waitRow(x)); });
+    $('g-wait').hidden = !conv.active && !rest.length;
+    $('wait-hint').textContent = conv.active || rest.some(function (x) { return /\.pdf$/i.test(x.name) && !x.fake; }) ?
+      'Converting on this device. Keep this screen open; it takes a few seconds per paper.' :
+      'Links are downloaded and converted by your computer while it is on and running Paper to Phone.';
     bad.innerHTML = '';
     view.bad.forEach(function (x) { bad.appendChild(badRow(x)); });
     $('g-bad').hidden = !view.bad.length;
@@ -480,12 +671,20 @@
     });
     return li;
   }
+  function activeRow(a) {
+    var li = D.createElement('li');
+    li.className = 'row';
+    li.innerHTML = '<div class="open" style="cursor:default"><span class="cover pending"><span class="spinner" style="width:22px;height:22px;border-width:2.5px"></span></span>' +
+      '<span class="meta"><span class="t">' + esc(stem(a.name)) + '</span><span class="v">PDF, ' + mb(a.size || 0) + '</span>' +
+      '<span class="tag" id="active-status">' + esc(a.status) + '</span></span></div>';
+    return li;
+  }
   function waitRow(x) {
     var li = D.createElement('li'), isLink = !/\.pdf$/i.test(x.name);
     li.className = 'row';
     li.innerHTML = '<div class="open" style="cursor:default"><span class="cover pending"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="8.5"/></svg></span>' +
-      '<span class="meta"><span class="t">' + esc(stem(x.name)) + '</span><span class="v">' + (isLink ? 'Link, waiting to download and convert' : 'PDF, ' + mb(x.size) + ', waiting to convert') +
-      '</span><span class="tag">Waiting for your computer</span></span></div>';
+      '<span class="meta"><span class="t">' + esc(stem(x.name)) + '</span><span class="v">' + (isLink ? 'Link, waiting to download and convert' : 'PDF, ' + mb(x.size)) +
+      '</span><span class="tag">' + (isLink || x.fake ? 'Waiting for your computer' : 'Waiting to convert') + '</span></span></div>';
     return li;
   }
   function badRow(x) {
@@ -571,6 +770,7 @@
   }
   function openPaper(p) {
     reading = p;
+    $('toast').classList.remove('on');
     showReader('Opening');
     cacheGet(p.item.id).then(function (c) {
       if (c && (c.etag === p.item.etag || !navigator.onLine)) return c.html;
@@ -624,9 +824,9 @@
     return files.reduce(function (chain, f) {
       return chain.then(function () {
         if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
-          setStatus('busy', 'Uploading ' + f.name);
+          if (!drive.local) setStatus('busy', 'Uploading ' + f.name);
           return drive.upload(sub.inbox.id, /\.pdf$/i.test(f.name) ? f.name : 'Pasted ' + stamp() + '.pdf', f, function (p) { setStatus('busy', 'Uploading ' + Math.round(p * 100) + '%'); })
-            .then(function () { n++; toast('Added to your Inbox. Your computer converts it next time it syncs.'); });
+            .then(function () { n++; toast('Converting on this device. It takes a few seconds.'); });
         }
         if (PAPER_EXT.test(f.name) || f.type === 'text/html') {
           return f.text().then(function (html) {
@@ -644,12 +844,32 @@
       });
     }, Promise.resolve()).then(function () { if (n) return refresh(); }).catch(function (e) { fail(e, 'Uploading'); refresh(true); });
   }
+  function arxivId(t) {
+    var m = t.match(/arxiv\.org\/(?:abs|pdf)\/([\w.\/-]+?)(?:\.pdf)?(?:[?#].*)?$/i) || t.match(/^\s*arxiv:\s*([\w.\/-]+)\s*$/i) ||
+            t.match(/^\s*(\d{4}\.\d{4,5}(?:v\d+)?)\s*$/);
+    return m ? m[1] : null;
+  }
   function addLink(text) {
     text = text.trim();
-    if (!isRef(text)) { toast('That does not look like a link, DOI or arXiv id.'); return Promise.resolve(); }
+    if (!isRef(text) && !arxivId(text)) { toast('That does not look like a link, DOI or arXiv id.'); return Promise.resolve(); }
     hideSheet();
+    $('link').value = ''; $('add-link').disabled = true;
+    var ax = arxivId(text);
+    if (ax) {                                   // arXiv lets browsers download its PDFs directly
+      setStatus('busy', 'Downloading from arXiv');
+      return fetch('https://arxiv.org/pdf/' + ax).then(function (r) {
+        if (!r.ok) throw Object.assign(new Error('arxiv ' + r.status), { friendly: 'arXiv did not return that paper. Check the id.' });
+        return r.blob();
+      }).then(function (b) {
+        return addFiles([new File([b], 'arXiv ' + ax.replace(/\//g, '_') + '.pdf', { type: 'application/pdf' })]);
+      }).catch(function (e) { fail(e, 'Downloading from arXiv'); syncedLabel(); });
+    }
+    if (drive.local || drive.demo) {
+      var url = /^https?:/i.test(text) ? text : 'https://doi.org/' + text.replace(/^doi:\s*/i, '');
+      toast('Journals don\u2019t let apps download their PDFs. Open the link, save the PDF to Files, then add it here.', 'Open link', function () { W.open(url, '_blank'); }, 10000);
+      return Promise.resolve();
+    }
     return drive.put(sub.inbox.id, 'Link ' + stamp() + '.txt', text + '\n', 'text/plain', false).then(function () {
-      $('link').value = ''; $('add-link').disabled = true;
       toast('Link added. Your computer downloads and converts it.');
       return refresh();
     }).catch(function (e) { fail(e, 'Adding the link'); });
@@ -657,7 +877,7 @@
   $('add').addEventListener('click', function () { showSheet('s-add'); });
   $('choose-file').addEventListener('click', function () { $('pick').click(); });
   $('pick').addEventListener('change', function () { var f = $('pick').files; addFiles(f).then(function () { $('pick').value = ''; }); });
-  $('link').addEventListener('input', function () { $('add-link').disabled = !isRef($('link').value); });
+  $('link').addEventListener('input', function () { $('add-link').disabled = !isRef($('link').value) && !arxivId($('link').value); });
   $('link').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !$('add-link').disabled) addLink($('link').value); });
   $('add-link').addEventListener('click', function () { addLink($('link').value); });
   $('paste').addEventListener('click', function () {
@@ -752,9 +972,14 @@
 
   /* ---------- account ---------- */
   $('who').addEventListener('click', function () {
-    $('acct-name').textContent = me ? me.name + (me.email && me.email !== me.name ? ' (' + me.email + ')' : '') : '';
-    $('acct-folder').textContent = folder ? 'OneDrive › ' + folder.path.replace(/\//g, ' › ') : 'Not chosen';
-    $('signout').textContent = drive && drive.demo ? 'Leave the sample' : 'Sign out';
+    var local = drive && drive.local;
+    $('acct-name').textContent = local ? 'No account. Papers stay on this device.' : me ? me.name + (me.email && me.email !== me.name ? ' (' + me.email + ')' : '') : '';
+    $('acct-folder').textContent = local ? 'This device only' : folder ? 'OneDrive \u203a ' + folder.path.replace(/\//g, ' \u203a ') : 'Not chosen';
+    $('change-folder').hidden = local || (drive && drive.demo);
+    $('how').hidden = local;
+    $('connect').hidden = !local || !clientId() || !W.msal;
+    $('signout').textContent = drive && drive.demo ? 'Leave the sample' : local ? 'Delete all papers on this device' : 'Sign out';
+    $('signout').dataset.armed = '';
     showSheet('s-account');
   });
   $('change-folder').addEventListener('click', function () { hideSheet(); setTimeout(openFolderPicker, 250); });
@@ -770,10 +995,17 @@
       function () { toast('Select the command and copy it.'); });
   });
   $('signout').addEventListener('click', function () {
-    ['p2p:folder', 'p2p:state', 'p2p:stateTag', 'p2p:snap', 'p2p:libjson'].forEach(lsDel);
+    var b = $('signout');
+    if (drive && drive.local && !b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again to delete everything'; b.style.color = 'var(--warn)'; return; }
+    ['p2p:folder', 'p2p:state', 'p2p:stateTag', 'p2p:snap', 'p2p:libjson', 'p2p:mode'].forEach(lsDel);
     try { indexedDB.deleteDatabase('paper-to-phone-cache'); } catch (e) {}
     if (drive && drive.demo) { location.href = redirectUri; return; }
+    if (drive && drive.local) { drive.wipe().then(function () { location.href = redirectUri; }); return; }
     pca.logoutRedirect({ account: account, postLogoutRedirectUri: redirectUri });
+  });
+  $('connect').addEventListener('click', function () {
+    lsDel('p2p:mode');
+    if (pca) pca.loginRedirect({ scopes: SCOPES, prompt: 'select_account' });
   });
 
   /* ---------- sheets ---------- */
@@ -812,7 +1044,12 @@
     return cacheOpen().then(function () { return drive.me(); }).then(function (m) {
       me = m;
       $('who').textContent = (m.name || '?').split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
-      if (drive.demo) { trail = [{ id: 'd1', name: 'OneDrive' }, drive.home]; folder = { id: drive.home.id, name: drive.home.name, path: 'Paper to Phone' }; return refresh(); }
+      if (drive.demo || drive.local) {
+        trail = [{ id: 'root', name: 'OneDrive' }, drive.home];
+        folder = { id: drive.home.id, name: drive.home.name, path: 'Paper to Phone' };
+        if (drive.local) $('who').innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>';
+        return refresh();
+      }
       folder = ls('p2p:folder', null);
       if (folder) return refresh();
       return drive.appGet().then(function (cfg) {
@@ -821,16 +1058,24 @@
       });
     }).catch(function (e) {
       if (!navigator.onLine && ls('p2p:folder', null)) { folder = ls('p2p:folder', null); syncedLabel(); return; }
-      fail(e, 'Connecting to OneDrive');
+      fail(e, drive && drive.local ? 'Opening your papers' : 'Connecting to OneDrive');
     });
   }
   function showWelcome() {
     $('app').hidden = true;
     $('welcome').hidden = false;
-    var needId = !clientId();
-    $('signin-box').hidden = needId;
-    $('setup-box').hidden = !needId;
+    var canSync = !!clientId() && !!W.msal;
+    $('signin').hidden = !canSync;
+    $('setup-link').hidden = canSync;
+    $('setup-box').hidden = true;
   }
+  function startLocal() {
+    lsSet('p2p:mode', 'local');
+    drive = LocalDrive();
+    drive.init().then(startApp).catch(function (e) { fail(e, 'Opening storage on this device'); showWelcome(); });
+  }
+  $('start').addEventListener('click', startLocal);
+  $('setup-link').addEventListener('click', function () { $('setup-box').hidden = false; $('setup-link').hidden = true; });
   $('signin').addEventListener('click', function () {
     if (!pca) return;
     pca.loginRedirect({ scopes: SCOPES, prompt: 'select_account' });
@@ -860,6 +1105,7 @@
     D.head.appendChild(ds);
     return;
   }
+  if (ls('p2p:mode', '') === 'local') { startLocal(); return; }
   if (!clientId() || !W.msal) { showWelcome(); return; }
   authInit().then(function () {
     if (!account) { showWelcome(); return; }
