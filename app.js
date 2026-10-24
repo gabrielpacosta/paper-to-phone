@@ -826,7 +826,7 @@
      every paper gets new reader features, such as highlights, without converting it again. */
   var reader = null;
   function loadReader() {
-    if (!reader) reader = Promise.all([fetch('reader/reader.js'), fetch('reader/reader.css')]).then(function (rs) {
+    if (!reader) reader = Promise.all([fetch('reader/reader.js', { cache: 'no-cache' }), fetch('reader/reader.css', { cache: 'no-cache' })]).then(function (rs) {
       if (!rs[0].ok || !rs[1].ok) throw new Error('reader');
       return Promise.all([rs[0].text(), rs[1].text()]);
     }).then(function (t) { return { js: t[0], css: t[1].replace(/\/\*[\s\S]*?\*\//g, '') }; }, function () { reader = null; return null; });
@@ -1211,7 +1211,16 @@
   setInterval(function () { if (D.visibilityState === 'visible' && $('reader').hidden) refresh(true); }, 45000);
   W.addEventListener('online', function () { refresh(); });
   W.addEventListener('offline', syncedLabel);
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    var hadWorker = !!navigator.serviceWorker.controller, reloaded = false;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(function () {});
+    // a new version took over: reload once to use it, unless a paper is open (then it applies next time)
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!hadWorker || reloaded || !$('reader').hidden) return;
+      reloaded = true;
+      location.reload();
+    });
+  }
 
   if (DEMO) {
     var ds = D.createElement('script');

@@ -1,4 +1,4 @@
-/* p2p-reader 5 */
+/* p2p-reader 6 */
 (function () {
   'use strict';
   var D = document, R = D.documentElement, W = window;
@@ -1071,6 +1071,8 @@
     W.parent.postMessage({ type: 'p2p', ready: true }, '*');
   }
 
+  var foot = $('#settings .foot'), ver = (D.scripts[D.scripts.length - 1].textContent.match(/p2p-reader (\d+)/) || [])[1];
+  if (foot && ver) foot.appendChild(D.createTextNode(' Reader version ' + ver + '.'));     // shows which version is running
   applyPrefs(false);
   clampAll();
   tables(D);

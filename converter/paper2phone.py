@@ -2924,7 +2924,7 @@ mark.hl mark.hl{background:none}
 mark.find{background:var(--find);color:inherit;border-radius:2px;padding:0;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 mark.find.cur{background:var(--find-cur);color:#16181D;box-shadow:0 0 0 2px var(--find-cur)}
 @media print{.findbar{display:none}}'''
-READER_JS = r'''/* p2p-reader 5 */
+READER_JS = r'''/* p2p-reader 6 */
 (function () {
   'use strict';
   var D = document, R = D.documentElement, W = window;
@@ -3997,6 +3997,8 @@ READER_JS = r'''/* p2p-reader 5 */
     W.parent.postMessage({ type: 'p2p', ready: true }, '*');
   }
 
+  var foot = $('#settings .foot'), ver = (D.scripts[D.scripts.length - 1].textContent.match(/p2p-reader (\d+)/) || [])[1];
+  if (foot && ver) foot.appendChild(D.createTextNode(' Reader version ' + ver + '.'));     // shows which version is running
   applyPrefs(false);
   clampAll();
   tables(D);
