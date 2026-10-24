@@ -18,6 +18,8 @@ The PDF never leaves the device.
 - **Highlights and notes:** select text, then tap Highlight or Note. Tap a highlight to edit its note, copy it or
   remove it. Contents lists every highlight; Copy all puts them on the clipboard with the paper's title.
   Papers converted before this feature get it automatically when opened in the app.
+- **Find:** tap the magnifier, or press Ctrl+F (Cmd+F on a Mac). Every match is marked, with a count and
+  arrows to step through them. Case, accents, curly quotes and dashes don't matter. Done takes you back.
 - **Books:** sends the EPUB to the share sheet, where Books is listed. On a computer it saves the EPUB.
 
 ## Optional: sync through OneDrive

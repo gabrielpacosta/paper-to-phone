@@ -1,4 +1,4 @@
-/* p2p-reader 3 */
+/* p2p-reader 4 */
 (function () {
   'use strict';
   var D = document, R = D.documentElement, W = window;
@@ -520,7 +520,7 @@
     if (name !== curName) { where.textContent = name; curName = name; }
     var left = Math.ceil(TOTAL * (1 - p));
     sub.textContent = p < 0.015 ? (TOTAL ? TOTAL + ' min read' : 'Start') : p > 0.985 ? 'Finished' : (TOTAL ? left + ' min left' : Math.round(p * 100) + '%');
-    if (!openSheet && !viewer.classList.contains('on') && !(selbar && selbar.classList.contains('on'))) {
+    if (!openSheet && !finding && !viewer.classList.contains('on') && !(selbar && selbar.classList.contains('on'))) {
       if (y > lastY + 8 && y > 260) dock.classList.add('hide');
       else if (y < lastY - 8 || y >= max - 80) dock.classList.remove('hide');
     }
@@ -558,7 +558,7 @@
   D.addEventListener('visibilitychange', function () { if (D.visibilityState === 'hidden') savePos(); });
   W.addEventListener('pagehide', savePos);
   $('#where').addEventListener('click', function () { openContents(false); });
-  $('#find').addEventListener('click', function () { openContents(true); });
+  $('#find').addEventListener('click', function () { openFind(selectedWords()); });
   $('#aa').addEventListener('click', function () { showSheet('settings'); });
 
   var toast = $('#toast'), last = load(KEY, null), hideToast = null;
@@ -885,6 +885,151 @@
     copyText(out.join('\n\n'), this);
   });
 
+  /* ---------- find in this paper (like Ctrl+F) ----------
+     A bar at the top marks every match in the text, counts them and steps through them.
+     Matching ignores case and accents, and treats curly quotes, dashes and line breaks as plain ones. */
+  var fbar = D.createElement('div');
+  fbar.className = 'findbar'; fbar.id = 'findbar'; fbar.setAttribute('role', 'search');
+  fbar.innerHTML = '<label class="fq"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>' +
+    '<input id="fq" type="search" placeholder="Find in this paper" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Find in this paper"/>' +
+    '<output id="fcount" aria-live="polite"></output></label>' +
+    '<button type="button" class="ibtn" id="fprev" aria-label="Previous match"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 14.5L12 9l5.5 5.5"/></svg></button>' +
+    '<button type="button" class="ibtn" id="fnext" aria-label="Next match"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 9.5L12 15l5.5-5.5"/></svg></button>' +
+    '<button type="button" class="fdone" id="fdone">Done</button>';
+  D.body.appendChild(fbar);
+  var fq = $('#fq', fbar), fcount = $('#fcount', fbar), hits = [], hitAt = -1, hitMore = false, hitQ = null;
+  var finding = false, findT = null, findFrom = 0, folded = null;
+  var coarse = !!(W.matchMedia && W.matchMedia('(pointer: coarse)').matches);
+  function fold(t) {                                     // one character in, one character out
+    var out = '';
+    for (var i = 0; i < t.length; i++) {
+      var c = t.charAt(i), l = c.toLowerCase();
+      if (l.length !== 1) l = c;
+      var d = l.normalize ? l.normalize('NFD').charAt(0) : l;
+      if (/[\u2018\u2019\u201B\u2032]/.test(d)) d = "'";
+      else if (/[\u201C\u201D\u2033]/.test(d)) d = '"';
+      else if (/[\u2010-\u2015\u2212]/.test(d)) d = '-';
+      else if (/\s/.test(d)) d = ' ';
+      out += d;
+    }
+    return out;
+  }
+  function wrapFind(bl, a, b) {
+    var p0 = pointAt(bl, a, false), p1 = pointAt(bl, b, true), out = [];
+    if (!p0 || !p1) return out;
+    var ts = texts(bl), i0 = ts.indexOf(p0[0]), i1 = ts.indexOf(p1[0]);
+    for (var j = i1; j >= i0; j--) {
+      var t = ts[j], s0 = j === i0 ? p0[1] : 0, e0 = j === i1 ? p1[1] : t.nodeValue.length;
+      if (e0 <= s0) continue;
+      if (e0 < t.nodeValue.length) t.splitText(e0);
+      if (s0 > 0) t = t.splitText(s0);
+      var m = D.createElement('mark');
+      m.className = 'find';
+      t.parentNode.insertBefore(m, t);
+      m.appendChild(t);
+      out.unshift(m);
+    }
+    return out;
+  }
+  function clearFind() {
+    $$('mark.find', paper).forEach(function (m) {
+      var p = m.parentNode;
+      while (m.firstChild) p.insertBefore(m.firstChild, m);
+      p.removeChild(m);
+      p.normalize();
+    });
+    hits = []; hitAt = -1; hitMore = false; hitQ = null;
+  }
+  function findTop() { return fbar.getBoundingClientRect().bottom + 8; }
+  function runFind() {
+    clearTimeout(findT);
+    clearFind();
+    hitQ = fq.value;
+    var q = fold(fq.value).replace(/^ +| +$/g, '');
+    fbar.classList.remove('none');
+    if (q.length < 2) { fcount.textContent = ''; return; }
+    if (!folded) folded = blocks.map(function (b) { return fold(textIn(b)); });
+    var re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ +/g, ' +'), 'g');
+    for (var i = 0; i < blocks.length && !hitMore; i++) {
+      var t = folded[i], m, spans = [];
+      re.lastIndex = 0;
+      while ((m = re.exec(t))) {
+        spans.push([m.index, m.index + m[0].length]);
+        if (hits.length + spans.length >= 999) { hitMore = true; break; }
+      }
+      var mine = [];
+      for (var k = spans.length - 1; k >= 0; k--) { var ms = wrapFind(blocks[i], spans[k][0], spans[k][1]); if (ms.length) mine.unshift(ms); }
+      hits = hits.concat(mine);
+    }
+    if (!hits.length) { fcount.textContent = 'No matches'; fbar.classList.add('none'); return; }
+    var from = findFrom + findTop(), start = 0;       // the first match below where you were reading
+    for (var h = 0; h < hits.length; h++) { if (hits[h][0].getBoundingClientRect().top + W.scrollY >= from - 4) { start = h; break; } }
+    goHit(start);
+  }
+  function goHit(i) {
+    if (!hits.length) return;
+    hitAt = (i + hits.length) % hits.length;
+    $$('mark.find.cur', paper).forEach(function (m) { m.classList.remove('cur'); });
+    var ms = hits[hitAt];
+    ms.forEach(function (m) { m.classList.add('cur'); });
+    var cl = ms[0].closest('.clamp');                // inside a shortened caption or author list: open it
+    if (cl) { cl.classList.remove('clamp'); cl.dataset.open = '1'; var mb = cl.nextElementSibling; if (mb && mb.classList.contains('more')) mb.remove(); }
+    var vh = W.visualViewport ? W.visualViewport.height : W.innerHeight, top = findTop();
+    var r = ms[0].getBoundingClientRect();
+    W.scrollTo(0, Math.max(0, r.top + W.scrollY - top - Math.max(0, (vh - top) * 0.3)));
+    var ts = ms[0].closest('.tscroll');              // wide tables scroll sideways to the match
+    if (ts) { var tr = ts.getBoundingClientRect(), mr = ms[0].getBoundingClientRect(); ts.scrollLeft += (mr.left - tr.left) - (tr.width - mr.width) / 2; }
+    fcount.textContent = (hitAt + 1) + ' of ' + hits.length + (hitMore ? '+' : '');
+  }
+  function findStep(dir) {
+    if (!hits.length || hitQ !== fq.value) { runFind(); return; }
+    goHit(hitAt + dir);
+  }
+  function openFind(seed) {
+    if (openSheet) hideSheet();
+    if (!finding) {
+      finding = true; findFrom = W.scrollY;
+      fbar.classList.add('on'); dock.classList.add('hide'); showBar(false);
+    }
+    if (seed) fq.value = seed;
+    fq.focus();
+    fq.select();
+    if (fq.value && hitQ !== fq.value) runFind();
+  }
+  function closeFind() {
+    if (!finding) return;
+    finding = false;
+    clearTimeout(findT);
+    clearFind();
+    fcount.textContent = '';
+    fbar.classList.remove('on', 'none');
+    if (D.activeElement === fq) fq.blur();
+    dock.classList.remove('hide');
+    if (Math.abs(W.scrollY - findFrom) > W.innerHeight * 0.8) {   // offer a way back to where you were reading
+      backY = findFrom;
+      back.classList.add('on');
+      clearTimeout(backTimer);
+      backTimer = setTimeout(function () { back.classList.remove('on'); }, 10000);
+    }
+  }
+  fq.addEventListener('input', function () { clearTimeout(findT); findT = setTimeout(runFind, 160); });
+  fq.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      findStep(e.shiftKey ? -1 : 1);
+      if (coarse && hits.length) fq.blur();          // on a phone, drop the keyboard so the match shows
+    } else if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
+  });
+  $$('button', fbar).forEach(function (b) { b.addEventListener('mousedown', function (e) { e.preventDefault(); }); });   // keep typing focus on a computer
+  $('#fprev', fbar).addEventListener('click', function () { findStep(-1); });
+  $('#fnext', fbar).addEventListener('click', function () { findStep(1); });
+  $('#fdone', fbar).addEventListener('click', closeFind);
+  function selectedWords() {
+    var s = W.getSelection(), t = s && !s.isCollapsed ? norm(s.toString()) : '';
+    return t && t.length <= 80 ? t : '';
+  }
+  $('#find').setAttribute('aria-label', 'Find in this paper');
+
   /* ---------- keyboard ---------- */
   D.addEventListener('keydown', function (e) {
     if (viewer.classList.contains('on')) {
@@ -894,8 +1039,15 @@
       return;
     }
     if (e.key === 'Escape' && openSheet) { hideSheet(); return; }
-    var typing = /INPUT|TEXTAREA/.test((D.activeElement || {}).tagName || '');
-    if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) { e.preventDefault(); openContents(true); }
+    if (e.key === 'Escape' && finding) { closeFind(); return; }
+    if (finding && e.key === 'Enter' && e.target !== fq && D.activeElement !== fq && !/INPUT|TEXTAREA|BUTTON/.test((D.activeElement || {}).tagName || '')) {
+      e.preventDefault(); findStep(e.shiftKey ? -1 : 1); return;
+    }
+    var typing = /INPUT|TEXTAREA/.test((D.activeElement || {}).tagName || ''), mod = e.metaKey || e.ctrlKey;
+    if (mod && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); openFind(selectedWords()); return; }
+    if (mod && (e.key === 'g' || e.key === 'G') && finding) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); return; }
+    if (e.key === '/' && !typing) { e.preventDefault(); openFind(selectedWords()); return; }
+    if (e.key === 'k' && mod) { e.preventDefault(); openContents(true); }
   });
 
   /* ---------- inside the Paper to Phone shelf ---------- */
@@ -906,6 +1058,9 @@
     lib.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>';
     dock.insertBefore(lib, dock.firstChild);
     lib.addEventListener('click', function () { savePos(); closing = true; W.parent.postMessage({ type: 'p2p', close: true }, '*'); });
+    W.addEventListener('message', function (e) {                // Ctrl+F pressed while the app, not the paper, had focus
+      if (e.source === W.parent && e.data && e.data.type === 'p2p' && e.data.find) openFind(selectedWords());
+    });
     W.parent.postMessage({ type: 'p2p', ready: true }, '*');
   }
 

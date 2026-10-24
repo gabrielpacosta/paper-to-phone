@@ -874,6 +874,14 @@
     schedulePush();
   }
   $('back').addEventListener('click', closeReader);
+  D.addEventListener('keydown', function (e) {           // Ctrl+F (Cmd+F on a Mac) finds inside the open paper
+    if ($('reader').hidden || !(e.metaKey || e.ctrlKey) || (e.key !== 'f' && e.key !== 'F')) return;
+    var w = $('frame').contentWindow;
+    if (!w) return;
+    e.preventDefault();
+    w.focus();
+    w.postMessage({ type: 'p2p', find: true }, '*');
+  });
   W.addEventListener('message', function (e) {
     if (e.source !== $('frame').contentWindow || !e.data || e.data.type !== 'p2p') return;
     if (e.data.ready) { clearTimeout(readyTimer); $('back').hidden = true; $('loading').hidden = true; }

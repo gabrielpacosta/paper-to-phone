@@ -2590,7 +2590,7 @@ ul.refs.ay { list-style: none; padding-left: 1.4em; text-indent: -1.4em; }
 READER_CSS = r''':root{
   --paper:#FDFDFC;--ink:#1B1D23;--ink-2:#575D6B;--ink-3:#8B909B;--rule:#E6E7EB;
   --raised:#FFFFFF;--glass:rgba(253,253,252,.9);--sunken:#F2F3F5;--fill:rgba(118,120,134,.11);--plate:#FFFFFF;
-  --accent:#4B45B8;--accent-soft:rgba(75,69,184,.10);--hl:rgba(214,51,108,.17);--mark:rgba(255,196,0,.36);--mark-line:#C08E00;--warn:#C2413A;
+  --accent:#4B45B8;--accent-soft:rgba(75,69,184,.10);--hl:rgba(214,51,108,.17);--mark:rgba(255,196,0,.36);--mark-line:#C08E00;--warn:#C2413A;--find:rgba(255,112,67,.22);--find-cur:#FF9A4D;
   --shadow:0 12px 40px rgba(22,24,44,.16),0 1px 3px rgba(22,24,44,.08);
   --fs:18px;--lh:1.62;
   --serif:ui-serif,"New York",Charter,"Iowan Old Style","Palatino Linotype",Georgia,serif;
@@ -2603,18 +2603,18 @@ READER_CSS = r''':root{
   :root:not([data-theme="light"]):not([data-theme="sepia"]){
     --paper:#0F1117;--ink:#E7E8EC;--ink-2:#A6ABB8;--ink-3:#737987;--rule:#262A34;
     --raised:#181B23;--glass:rgba(24,27,35,.9);--sunken:#1A1D25;--fill:rgba(160,166,190,.14);--plate:#F0F0F0;
-    --accent:#A3ACFF;--accent-soft:rgba(163,172,255,.13);--hl:rgba(255,122,168,.22);--mark:rgba(255,190,40,.27);--mark-line:#E2B547;--warn:#FF8F85;
+    --accent:#A3ACFF;--accent-soft:rgba(163,172,255,.13);--hl:rgba(255,122,168,.22);--mark:rgba(255,190,40,.27);--mark-line:#E2B547;--warn:#FF8F85;--find:rgba(255,138,92,.26);--find-cur:#FFA466;
     --shadow:0 12px 40px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.4);color-scheme:dark}
 }
 :root[data-theme="dark"]{
   --paper:#0F1117;--ink:#E7E8EC;--ink-2:#A6ABB8;--ink-3:#737987;--rule:#262A34;
   --raised:#181B23;--glass:rgba(24,27,35,.9);--sunken:#1A1D25;--fill:rgba(160,166,190,.14);--plate:#F0F0F0;
-  --accent:#A3ACFF;--accent-soft:rgba(163,172,255,.13);--hl:rgba(255,122,168,.22);--mark:rgba(255,190,40,.27);--mark-line:#E2B547;--warn:#FF8F85;
+  --accent:#A3ACFF;--accent-soft:rgba(163,172,255,.13);--hl:rgba(255,122,168,.22);--mark:rgba(255,190,40,.27);--mark-line:#E2B547;--warn:#FF8F85;--find:rgba(255,138,92,.26);--find-cur:#FFA466;
   --shadow:0 12px 40px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.4);color-scheme:dark}
 :root[data-theme="sepia"]{
   --paper:#F5EFE3;--ink:#3A3027;--ink-2:#6D6051;--ink-3:#9A8C79;--rule:#E3D9C6;
   --raised:#FBF7EF;--glass:rgba(250,245,236,.9);--sunken:#ECE4D3;--fill:rgba(120,96,60,.10);--plate:#FFFDF8;
-  --accent:#5B46A6;--accent-soft:rgba(91,70,166,.11);--hl:rgba(214,51,108,.16);--mark:rgba(232,168,0,.32);--mark-line:#B07F00;--warn:#B23A33}
+  --accent:#5B46A6;--accent-soft:rgba(91,70,166,.11);--hl:rgba(214,51,108,.16);--mark:rgba(232,168,0,.32);--mark-line:#B07F00;--warn:#B23A33;--find:rgba(230,100,50,.22);--find-cur:#F59245}
 :root[data-font="sans"]{--text:var(--sans);--lh:1.56}
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;background:var(--paper)}
@@ -2902,8 +2902,27 @@ mark.hl mark.hl{background:none}
 .hlitem .hq{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding-left:11px;border-left:3px solid var(--mark);
   font:400 15px/1.45 var(--serif);color:var(--ink)}
 .hlitem .hn{display:block;margin-top:5px;padding-left:14px;font-size:13.5px;color:var(--ink-2);white-space:pre-line}
-@media print{.selbar{display:none}mark.hl{background:#FFE58A}}'''
-READER_JS = r'''/* p2p-reader 3 */
+@media print{.selbar{display:none}mark.hl{background:#FFE58A}}
+.findbar{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));z-index:26;box-sizing:border-box;
+  width:min(calc(100% - 20px),34em);height:56px;display:flex;align-items:center;gap:2px;padding:0 6px 0 8px;
+  border-radius:28px;background:var(--glass);-webkit-backdrop-filter:saturate(1.8) blur(24px);backdrop-filter:saturate(1.8) blur(24px);
+  box-shadow:var(--shadow),inset 0 0 0 .5px var(--rule);font-family:var(--sans);
+  transform:translate(-50%,calc(-100% - 30px));opacity:0;visibility:hidden;transition:transform .4s var(--ease),opacity .25s var(--ease),visibility 0s .4s}
+.findbar.on{transform:translateX(-50%);opacity:1;visibility:visible;transition:transform .4s var(--ease),opacity .25s var(--ease),visibility 0s}
+.fq{flex:1;min-width:0;display:flex;align-items:center;gap:7px;height:40px;padding:0 12px;border-radius:20px;background:var(--fill);color:var(--ink-3);cursor:text}
+.fq svg{flex:none;width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.fq input{flex:1;min-width:0;height:100%;margin:0;padding:0;border:0;background:none;outline:none;font:400 16px var(--sans);color:var(--ink);-webkit-appearance:none;appearance:none}
+.fq input::placeholder{color:var(--ink-3)}
+.fq input::-webkit-search-cancel-button{display:none}
+.fq output{flex:none;font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.findbar.none output{color:var(--warn)}
+.findbar .ibtn{width:40px;height:40px}
+.fdone{flex:none;height:40px;padding:0 10px 0 8px;border:0;border-radius:20px;background:none;color:var(--accent);font:600 15px var(--sans);cursor:pointer}
+.fdone:active{background:var(--fill)}
+mark.find{background:var(--find);color:inherit;border-radius:2px;padding:0;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+mark.find.cur{background:var(--find-cur);color:#16181D;box-shadow:0 0 0 2px var(--find-cur)}
+@media print{.findbar{display:none}}'''
+READER_JS = r'''/* p2p-reader 4 */
 (function () {
   'use strict';
   var D = document, R = D.documentElement, W = window;
@@ -3425,7 +3444,7 @@ READER_JS = r'''/* p2p-reader 3 */
     if (name !== curName) { where.textContent = name; curName = name; }
     var left = Math.ceil(TOTAL * (1 - p));
     sub.textContent = p < 0.015 ? (TOTAL ? TOTAL + ' min read' : 'Start') : p > 0.985 ? 'Finished' : (TOTAL ? left + ' min left' : Math.round(p * 100) + '%');
-    if (!openSheet && !viewer.classList.contains('on') && !(selbar && selbar.classList.contains('on'))) {
+    if (!openSheet && !finding && !viewer.classList.contains('on') && !(selbar && selbar.classList.contains('on'))) {
       if (y > lastY + 8 && y > 260) dock.classList.add('hide');
       else if (y < lastY - 8 || y >= max - 80) dock.classList.remove('hide');
     }
@@ -3463,7 +3482,7 @@ READER_JS = r'''/* p2p-reader 3 */
   D.addEventListener('visibilitychange', function () { if (D.visibilityState === 'hidden') savePos(); });
   W.addEventListener('pagehide', savePos);
   $('#where').addEventListener('click', function () { openContents(false); });
-  $('#find').addEventListener('click', function () { openContents(true); });
+  $('#find').addEventListener('click', function () { openFind(selectedWords()); });
   $('#aa').addEventListener('click', function () { showSheet('settings'); });
 
   var toast = $('#toast'), last = load(KEY, null), hideToast = null;
@@ -3790,6 +3809,151 @@ READER_JS = r'''/* p2p-reader 3 */
     copyText(out.join('\n\n'), this);
   });
 
+  /* ---------- find in this paper (like Ctrl+F) ----------
+     A bar at the top marks every match in the text, counts them and steps through them.
+     Matching ignores case and accents, and treats curly quotes, dashes and line breaks as plain ones. */
+  var fbar = D.createElement('div');
+  fbar.className = 'findbar'; fbar.id = 'findbar'; fbar.setAttribute('role', 'search');
+  fbar.innerHTML = '<label class="fq"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>' +
+    '<input id="fq" type="search" placeholder="Find in this paper" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Find in this paper"/>' +
+    '<output id="fcount" aria-live="polite"></output></label>' +
+    '<button type="button" class="ibtn" id="fprev" aria-label="Previous match"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 14.5L12 9l5.5 5.5"/></svg></button>' +
+    '<button type="button" class="ibtn" id="fnext" aria-label="Next match"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 9.5L12 15l5.5-5.5"/></svg></button>' +
+    '<button type="button" class="fdone" id="fdone">Done</button>';
+  D.body.appendChild(fbar);
+  var fq = $('#fq', fbar), fcount = $('#fcount', fbar), hits = [], hitAt = -1, hitMore = false, hitQ = null;
+  var finding = false, findT = null, findFrom = 0, folded = null;
+  var coarse = !!(W.matchMedia && W.matchMedia('(pointer: coarse)').matches);
+  function fold(t) {                                     // one character in, one character out
+    var out = '';
+    for (var i = 0; i < t.length; i++) {
+      var c = t.charAt(i), l = c.toLowerCase();
+      if (l.length !== 1) l = c;
+      var d = l.normalize ? l.normalize('NFD').charAt(0) : l;
+      if (/[\u2018\u2019\u201B\u2032]/.test(d)) d = "'";
+      else if (/[\u201C\u201D\u2033]/.test(d)) d = '"';
+      else if (/[\u2010-\u2015\u2212]/.test(d)) d = '-';
+      else if (/\s/.test(d)) d = ' ';
+      out += d;
+    }
+    return out;
+  }
+  function wrapFind(bl, a, b) {
+    var p0 = pointAt(bl, a, false), p1 = pointAt(bl, b, true), out = [];
+    if (!p0 || !p1) return out;
+    var ts = texts(bl), i0 = ts.indexOf(p0[0]), i1 = ts.indexOf(p1[0]);
+    for (var j = i1; j >= i0; j--) {
+      var t = ts[j], s0 = j === i0 ? p0[1] : 0, e0 = j === i1 ? p1[1] : t.nodeValue.length;
+      if (e0 <= s0) continue;
+      if (e0 < t.nodeValue.length) t.splitText(e0);
+      if (s0 > 0) t = t.splitText(s0);
+      var m = D.createElement('mark');
+      m.className = 'find';
+      t.parentNode.insertBefore(m, t);
+      m.appendChild(t);
+      out.unshift(m);
+    }
+    return out;
+  }
+  function clearFind() {
+    $$('mark.find', paper).forEach(function (m) {
+      var p = m.parentNode;
+      while (m.firstChild) p.insertBefore(m.firstChild, m);
+      p.removeChild(m);
+      p.normalize();
+    });
+    hits = []; hitAt = -1; hitMore = false; hitQ = null;
+  }
+  function findTop() { return fbar.getBoundingClientRect().bottom + 8; }
+  function runFind() {
+    clearTimeout(findT);
+    clearFind();
+    hitQ = fq.value;
+    var q = fold(fq.value).replace(/^ +| +$/g, '');
+    fbar.classList.remove('none');
+    if (q.length < 2) { fcount.textContent = ''; return; }
+    if (!folded) folded = blocks.map(function (b) { return fold(textIn(b)); });
+    var re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ +/g, ' +'), 'g');
+    for (var i = 0; i < blocks.length && !hitMore; i++) {
+      var t = folded[i], m, spans = [];
+      re.lastIndex = 0;
+      while ((m = re.exec(t))) {
+        spans.push([m.index, m.index + m[0].length]);
+        if (hits.length + spans.length >= 999) { hitMore = true; break; }
+      }
+      var mine = [];
+      for (var k = spans.length - 1; k >= 0; k--) { var ms = wrapFind(blocks[i], spans[k][0], spans[k][1]); if (ms.length) mine.unshift(ms); }
+      hits = hits.concat(mine);
+    }
+    if (!hits.length) { fcount.textContent = 'No matches'; fbar.classList.add('none'); return; }
+    var from = findFrom + findTop(), start = 0;       // the first match below where you were reading
+    for (var h = 0; h < hits.length; h++) { if (hits[h][0].getBoundingClientRect().top + W.scrollY >= from - 4) { start = h; break; } }
+    goHit(start);
+  }
+  function goHit(i) {
+    if (!hits.length) return;
+    hitAt = (i + hits.length) % hits.length;
+    $$('mark.find.cur', paper).forEach(function (m) { m.classList.remove('cur'); });
+    var ms = hits[hitAt];
+    ms.forEach(function (m) { m.classList.add('cur'); });
+    var cl = ms[0].closest('.clamp');                // inside a shortened caption or author list: open it
+    if (cl) { cl.classList.remove('clamp'); cl.dataset.open = '1'; var mb = cl.nextElementSibling; if (mb && mb.classList.contains('more')) mb.remove(); }
+    var vh = W.visualViewport ? W.visualViewport.height : W.innerHeight, top = findTop();
+    var r = ms[0].getBoundingClientRect();
+    W.scrollTo(0, Math.max(0, r.top + W.scrollY - top - Math.max(0, (vh - top) * 0.3)));
+    var ts = ms[0].closest('.tscroll');              // wide tables scroll sideways to the match
+    if (ts) { var tr = ts.getBoundingClientRect(), mr = ms[0].getBoundingClientRect(); ts.scrollLeft += (mr.left - tr.left) - (tr.width - mr.width) / 2; }
+    fcount.textContent = (hitAt + 1) + ' of ' + hits.length + (hitMore ? '+' : '');
+  }
+  function findStep(dir) {
+    if (!hits.length || hitQ !== fq.value) { runFind(); return; }
+    goHit(hitAt + dir);
+  }
+  function openFind(seed) {
+    if (openSheet) hideSheet();
+    if (!finding) {
+      finding = true; findFrom = W.scrollY;
+      fbar.classList.add('on'); dock.classList.add('hide'); showBar(false);
+    }
+    if (seed) fq.value = seed;
+    fq.focus();
+    fq.select();
+    if (fq.value && hitQ !== fq.value) runFind();
+  }
+  function closeFind() {
+    if (!finding) return;
+    finding = false;
+    clearTimeout(findT);
+    clearFind();
+    fcount.textContent = '';
+    fbar.classList.remove('on', 'none');
+    if (D.activeElement === fq) fq.blur();
+    dock.classList.remove('hide');
+    if (Math.abs(W.scrollY - findFrom) > W.innerHeight * 0.8) {   // offer a way back to where you were reading
+      backY = findFrom;
+      back.classList.add('on');
+      clearTimeout(backTimer);
+      backTimer = setTimeout(function () { back.classList.remove('on'); }, 10000);
+    }
+  }
+  fq.addEventListener('input', function () { clearTimeout(findT); findT = setTimeout(runFind, 160); });
+  fq.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      findStep(e.shiftKey ? -1 : 1);
+      if (coarse && hits.length) fq.blur();          // on a phone, drop the keyboard so the match shows
+    } else if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
+  });
+  $$('button', fbar).forEach(function (b) { b.addEventListener('mousedown', function (e) { e.preventDefault(); }); });   // keep typing focus on a computer
+  $('#fprev', fbar).addEventListener('click', function () { findStep(-1); });
+  $('#fnext', fbar).addEventListener('click', function () { findStep(1); });
+  $('#fdone', fbar).addEventListener('click', closeFind);
+  function selectedWords() {
+    var s = W.getSelection(), t = s && !s.isCollapsed ? norm(s.toString()) : '';
+    return t && t.length <= 80 ? t : '';
+  }
+  $('#find').setAttribute('aria-label', 'Find in this paper');
+
   /* ---------- keyboard ---------- */
   D.addEventListener('keydown', function (e) {
     if (viewer.classList.contains('on')) {
@@ -3799,8 +3963,15 @@ READER_JS = r'''/* p2p-reader 3 */
       return;
     }
     if (e.key === 'Escape' && openSheet) { hideSheet(); return; }
-    var typing = /INPUT|TEXTAREA/.test((D.activeElement || {}).tagName || '');
-    if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) { e.preventDefault(); openContents(true); }
+    if (e.key === 'Escape' && finding) { closeFind(); return; }
+    if (finding && e.key === 'Enter' && e.target !== fq && D.activeElement !== fq && !/INPUT|TEXTAREA|BUTTON/.test((D.activeElement || {}).tagName || '')) {
+      e.preventDefault(); findStep(e.shiftKey ? -1 : 1); return;
+    }
+    var typing = /INPUT|TEXTAREA/.test((D.activeElement || {}).tagName || ''), mod = e.metaKey || e.ctrlKey;
+    if (mod && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); openFind(selectedWords()); return; }
+    if (mod && (e.key === 'g' || e.key === 'G') && finding) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); return; }
+    if (e.key === '/' && !typing) { e.preventDefault(); openFind(selectedWords()); return; }
+    if (e.key === 'k' && mod) { e.preventDefault(); openContents(true); }
   });
 
   /* ---------- inside the Paper to Phone shelf ---------- */
@@ -3811,6 +3982,9 @@ READER_JS = r'''/* p2p-reader 3 */
     lib.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>';
     dock.insertBefore(lib, dock.firstChild);
     lib.addEventListener('click', function () { savePos(); closing = true; W.parent.postMessage({ type: 'p2p', close: true }, '*'); });
+    W.addEventListener('message', function (e) {                // Ctrl+F pressed while the app, not the paper, had focus
+      if (e.source === W.parent && e.data && e.data.type === 'p2p' && e.data.find) openFind(selectedWords());
+    });
     W.parent.postMessage({ type: 'p2p', ready: true }, '*');
   }
 
@@ -4249,7 +4423,7 @@ def write_html(paper, path):
 </main>
 <nav class="dock" id="dock" aria-label="Reading controls">
 <button class="where" id="where" type="button" aria-label="Contents and progress"><svg class="ring" id="ring" viewBox="0 0 28 28" aria-hidden="true"><circle class="track" cx="14" cy="14" r="11"/><circle class="val" cx="14" cy="14" r="11"/></svg><span><b></b><small></small></span></button>
-<button class="ibtn" id="find" type="button" aria-label="Search this paper">{ICONS["search"]}</button>
+<button class="ibtn" id="find" type="button" aria-label="Find in this paper">{ICONS["search"]}</button>
 <button class="ibtn aa" id="aa" type="button" aria-label="Reading settings">Aa</button>
 </nav>
 <button class="back" id="back" type="button">{ICONS["back"]}Back to where you were</button>
