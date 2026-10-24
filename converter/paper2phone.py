@@ -2588,6 +2588,8 @@ ul.refs.ay { list-style: none; padding-left: 1.4em; text-indent: -1.4em; }
 
 # <<READER
 READER_CSS = r''':root{
+  --safe-t:max(env(safe-area-inset-top,0px),var(--sat,0px));--safe-b:max(env(safe-area-inset-bottom,0px),var(--sab,0px));
+  --bar-b:max(10px,calc(var(--safe-b) * .5 + 6px));
   --paper:#FDFDFC;--ink:#1B1D23;--ink-2:#575D6B;--ink-3:#8B909B;--rule:#E6E7EB;
   --raised:#FFFFFF;--glass:rgba(253,253,252,.9);--sunken:#F2F3F5;--fill:rgba(118,120,134,.11);--plate:#FFFFFF;
   --accent:#4B45B8;--accent-soft:rgba(75,69,184,.10);--hl:rgba(214,51,108,.17);--mark:rgba(255,196,0,.36);--mark-line:#C08E00;--warn:#C2413A;--find:rgba(255,112,67,.22);--find-cur:#FF9A4D;
@@ -2626,7 +2628,7 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 ::selection{background:var(--accent-soft)}
 .paper{max-width:35em;margin:0 auto;
-  padding:calc(env(safe-area-inset-top) + 34px) max(20px,env(safe-area-inset-right)) calc(132px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+  padding:calc(var(--safe-t) + 34px) max(20px,env(safe-area-inset-right)) calc(116px + var(--safe-b)) max(20px,env(safe-area-inset-left))}
 .paper{overflow-wrap:break-word}
 .paper p{margin:0 0 .95em;hyphens:auto;-webkit-hyphens:auto}
 .paper a{color:var(--accent);text-decoration:none}
@@ -2723,7 +2725,7 @@ ol.refs,ul.refs{list-style:none;margin:0;padding:0}
 .flash{animation:flash 2.4s var(--ease)}
 @keyframes flash{0%,35%{background:var(--hl);box-shadow:0 0 0 8px var(--hl)}100%{background:transparent;box-shadow:0 0 0 8px transparent}}
 mark{background:var(--hl);color:inherit;border-radius:3px;padding:0 1px}
-.dock{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));z-index:20;transform:translateX(-50%);
+.dock{position:fixed;left:50%;bottom:var(--bar-b);z-index:20;transform:translateX(-50%);
   width:min(calc(100% - 28px),31em);height:56px;display:flex;align-items:center;gap:2px;padding:0 6px 0 8px;
   border-radius:28px;background:var(--glass);-webkit-backdrop-filter:saturate(1.8) blur(24px);backdrop-filter:saturate(1.8) blur(24px);
   box-shadow:var(--shadow),inset 0 0 0 .5px var(--rule);font-family:var(--sans);
@@ -2744,9 +2746,9 @@ mark{background:var(--hl);color:inherit;border-radius:3px;padding:0 1px}
 .ibtn.aa{font:600 17px/1 var(--serif);letter-spacing:-.02em}
 .scrim{position:fixed;inset:0;z-index:30;background:rgba(8,10,18,.34);opacity:0;pointer-events:none;transition:opacity .4s var(--ease)}
 .scrim.on{opacity:1;pointer-events:auto}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:31;margin:0 auto;max-width:640px;max-height:calc(100% - 44px - env(safe-area-inset-top));
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:31;margin:0 auto;max-width:640px;max-height:calc(100% - 44px - var(--safe-t));
   display:flex;flex-direction:column;background:var(--raised);border-radius:22px 22px 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.2);
-  font-family:var(--sans);color:var(--ink);padding-bottom:env(safe-area-inset-bottom);
+  font-family:var(--sans);color:var(--ink);padding-bottom:var(--safe-b);
   transform:translateY(104%);visibility:hidden;transition:transform .5s var(--ease),visibility 0s .5s}
 .sheet.on{transform:none;visibility:visible;transition:transform .5s var(--ease),visibility 0s}
 .sheet.drag{transition:none}
@@ -2812,12 +2814,12 @@ mark{background:var(--hl);color:inherit;border-radius:3px;padding:0 1px}
 .textbtn{display:flex;align-items:center;justify-content:center;width:100%;height:48px;margin-top:14px;border:0;border-radius:14px;background:var(--fill);color:var(--accent);font:600 15px var(--sans);cursor:pointer}
 .textbtn:active{filter:brightness(.96)}
 .foot{margin:22px 0 0;font-size:12.5px;color:var(--ink-3);line-height:1.5}
-.back{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;z-index:25;transform:translate(-50%,-180%);visibility:hidden;
+.back{position:fixed;top:calc(10px + var(--safe-t));left:50%;z-index:25;transform:translate(-50%,-180%);visibility:hidden;
   display:flex;align-items:center;gap:7px;height:38px;padding:0 16px 0 12px;border:0;border-radius:19px;background:var(--ink);color:var(--paper);
   font:600 13.5px var(--sans);box-shadow:var(--shadow);cursor:pointer;transition:transform .5s var(--ease),visibility 0s .5s}
 .back.on{transform:translate(-50%,0);visibility:visible;transition:transform .5s var(--ease),visibility 0s}
 .back svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));z-index:24;transform:translate(-50%,16px);opacity:0;pointer-events:none;visibility:hidden;
+.toast{position:fixed;left:50%;bottom:var(--bar-b);z-index:24;transform:translate(-50%,16px);opacity:0;pointer-events:none;visibility:hidden;
   width:min(calc(100% - 28px),31em);display:flex;align-items:center;gap:10px;padding:12px 8px 12px 16px;border-radius:18px;
   background:var(--ink);color:var(--paper);font:400 14px/1.35 var(--sans);box-shadow:var(--shadow);transition:transform .45s var(--ease),opacity .35s}
 .toast.on{transform:translate(-50%,0);opacity:1;pointer-events:auto;visibility:visible}
@@ -2834,7 +2836,7 @@ mark{background:var(--hl);color:inherit;border-radius:3px;padding:0 1px}
 .stage{position:absolute;inset:0;overflow:hidden}
 .stage img{position:absolute;left:0;top:0;transform-origin:0 0;background:#fff;-webkit-user-drag:none;will-change:transform}
 .stage img.anim{transition:transform .32s var(--ease)}
-.vtop{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 8px) 12px 18px;
+.vtop{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:calc(var(--safe-t) + 8px) 12px 18px;
   background:linear-gradient(rgba(0,0,0,.72),rgba(0,0,0,0));transition:opacity .25s}
 .vtop .t{flex:1;min-width:0;text-align:center}
 .vtop b{display:block;font-size:15px;font-weight:600}
@@ -2844,7 +2846,7 @@ mark{background:var(--hl);color:inherit;border-radius:3px;padding:0 1px}
 .vbtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .vbtn.ghost{visibility:hidden}
 .vcap{position:absolute;left:0;right:0;bottom:0;max-height:46%;overflow-y:auto;overscroll-behavior:contain;
-  padding:34px 20px calc(18px + env(safe-area-inset-bottom));background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.82) 34px);
+  padding:34px 20px calc(18px + var(--safe-b));background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.82) 34px);
   font-size:14px;line-height:1.5;color:rgba(255,255,255,.82);transition:opacity .25s}
 .vcap .in{max-width:640px;margin:0 auto}
 .vcap .flabel,.vcap .ftitle{color:#fff;font-weight:600}
@@ -2876,7 +2878,7 @@ html:not(.js) .shot{cursor:default}
 mark.hl{background:var(--mark);color:inherit;border-radius:2px;padding:0;cursor:pointer;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 mark.hl.noted{box-shadow:inset 0 -2px 0 var(--mark-line)}
 mark.hl mark.hl{background:none}
-.selbar{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));z-index:21;display:flex;gap:2px;padding:6px;
+.selbar{position:fixed;left:50%;bottom:var(--bar-b);z-index:21;display:flex;gap:2px;padding:6px;
   border-radius:28px;background:var(--glass);-webkit-backdrop-filter:saturate(1.8) blur(24px);backdrop-filter:saturate(1.8) blur(24px);
   box-shadow:var(--shadow),inset 0 0 0 .5px var(--rule);font-family:var(--sans);
   transform:translate(-50%,calc(100% + 34px));opacity:0;pointer-events:none;transition:transform .4s var(--ease),opacity .3s var(--ease)}
@@ -2903,7 +2905,7 @@ mark.hl mark.hl{background:none}
   font:400 15px/1.45 var(--serif);color:var(--ink)}
 .hlitem .hn{display:block;margin-top:5px;padding-left:14px;font-size:13.5px;color:var(--ink-2);white-space:pre-line}
 @media print{.selbar{display:none}mark.hl{background:#FFE58A}}
-.findbar{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));z-index:26;box-sizing:border-box;
+.findbar{position:fixed;left:50%;top:calc(10px + var(--safe-t));z-index:26;box-sizing:border-box;
   width:min(calc(100% - 20px),34em);height:56px;display:flex;align-items:center;gap:2px;padding:0 6px 0 8px;
   border-radius:28px;background:var(--glass);-webkit-backdrop-filter:saturate(1.8) blur(24px);backdrop-filter:saturate(1.8) blur(24px);
   box-shadow:var(--shadow),inset 0 0 0 .5px var(--rule);font-family:var(--sans);
@@ -2922,7 +2924,7 @@ mark.hl mark.hl{background:none}
 mark.find{background:var(--find);color:inherit;border-radius:2px;padding:0;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 mark.find.cur{background:var(--find-cur);color:#16181D;box-shadow:0 0 0 2px var(--find-cur)}
 @media print{.findbar{display:none}}'''
-READER_JS = r'''/* p2p-reader 4 */
+READER_JS = r'''/* p2p-reader 5 */
 (function () {
   'use strict';
   var D = document, R = D.documentElement, W = window;
@@ -3444,7 +3446,8 @@ READER_JS = r'''/* p2p-reader 4 */
     if (name !== curName) { where.textContent = name; curName = name; }
     var left = Math.ceil(TOTAL * (1 - p));
     sub.textContent = p < 0.015 ? (TOTAL ? TOTAL + ' min read' : 'Start') : p > 0.985 ? 'Finished' : (TOTAL ? left + ' min left' : Math.round(p * 100) + '%');
-    if (!openSheet && !finding && !viewer.classList.contains('on') && !(selbar && selbar.classList.contains('on'))) {
+    if (toast && toast.classList.contains('on') && settled && Math.abs(y - resumeY) > 60) toastOff();   // reading again: the note has done its job
+    if (!openSheet && !finding && !viewer.classList.contains('on') && !(selbar && selbar.classList.contains('on')) && !(toast && toast.classList.contains('on'))) {
       if (y > lastY + 8 && y > 260) dock.classList.add('hide');
       else if (y < lastY - 8 || y >= max - 80) dock.classList.remove('hide');
     }
@@ -3485,7 +3488,14 @@ READER_JS = r'''/* p2p-reader 4 */
   $('#find').addEventListener('click', function () { openFind(selectedWords()); });
   $('#aa').addEventListener('click', function () { showSheet('settings'); });
 
-  var toast = $('#toast'), last = load(KEY, null), hideToast = null;
+  var toast = $('#toast'), last = load(KEY, null), hideToast = null, resumeY = 0;
+  function toastOn() { toast.classList.add('on'); dock.classList.add('hide'); }         // the note takes the bar's place
+  function toastOff() {
+    clearTimeout(hideToast);
+    if (!toast.classList.contains('on')) return;
+    toast.classList.remove('on');
+    if (!openSheet && !finding && !(selbar && selbar.classList.contains('on'))) dock.classList.remove('hide');
+  }
   function target(rec) {
     var el = typeof rec.a === 'number' ? ANCH[rec.a] : null;
     if (el && rec.x && norm(el.textContent).slice(0, 32) !== rec.x) el = null;      // the paper changed: use the fraction
@@ -3495,7 +3505,7 @@ READER_JS = r'''/* p2p-reader 4 */
   function resumePlace() {                                // reopen where you left off, without asking
     if (!last || !(last.p > 0.02 && last.p < 0.98)) { settled = true; return; }
     var stop = false, EVS = ['touchstart', 'wheel', 'keydown', 'mousedown'];
-    function go() { if (!stop) W.scrollTo(0, Math.max(0, target(last))); }
+    function go() { if (!stop) { W.scrollTo(0, Math.max(0, target(last))); resumeY = W.scrollY; } }
     function quit() {
       if (stop) return;
       stop = true; settled = true;
@@ -3511,10 +3521,9 @@ READER_JS = r'''/* p2p-reader 4 */
     $('small', toast).textContent = (last.h ? last.h + ' \u00b7 ' : '') + Math.round(last.p * 100) + '% read';
     var over = $('.go', toast);
     over.textContent = 'Start over';
-    over.addEventListener('click', function () { quit(); clearTimeout(hideToast); toast.classList.remove('on'); scrollTo(0); });
-    $('.x', toast).addEventListener('click', function () { clearTimeout(hideToast); toast.classList.remove('on'); });
-    setTimeout(function () { toast.classList.add('on'); }, 300);
-    hideToast = setTimeout(function () { toast.classList.remove('on'); }, 5000);
+    over.addEventListener('click', function () { quit(); toastOff(); scrollTo(0); });
+    $('.x', toast).addEventListener('click', toastOff);
+    setTimeout(function () { if (!finding && !openSheet) { toastOn(); hideToast = setTimeout(toastOff, 5000); } }, 300);
   }
 
   /* ---------- captions, authors and tables that need a second look ---------- */

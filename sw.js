@@ -1,5 +1,5 @@
 /* Keeps the app, and once used the converter runtime, available offline. Papers live in IndexedDB. */
-var V = 'p2p-shell-v5', RUNTIME = 'p2p-pyodide-0.28.3';
+var V = 'p2p-shell-v6', RUNTIME = 'p2p-pyodide-0.28.3';
 var SHELL = ['./', 'index.html', 'app.js', 'config.js', 'convert-worker.js', 'converter/paper2phone.py', 'reader/reader.js', 'reader/reader.css',
              'vendor/msal-browser-4.30.0.min.js', 'manifest.webmanifest', 'icons/icon-192.png?v=2', 'icons/apple-touch-icon.png?v=2'];
 self.addEventListener('install', function (e) {

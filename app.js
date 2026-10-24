@@ -783,6 +783,16 @@
   /* ---------- reading a paper ---------- */
   var INJECT = '<script>window.P2P_SHELF=1;document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href^=\\"http\\"]");if(a){a.target="_blank";a.rel="noopener";}},true);<\/script>';
   var readyTimer = null, reading = null, readPoll = null;
+  /* The paper fills the screen and places its own bars clear of the status bar and home bar. A frame
+     may not be told those sizes, so the app measures them and passes them in. */
+  function safeAreas() {
+    var d = D.createElement('div');
+    d.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)';
+    D.body.appendChild(d);
+    var cs = getComputedStyle(d), t = parseFloat(cs.paddingTop) || 0, b = parseFloat(cs.paddingBottom) || 0;
+    d.remove();
+    return '<style>:root{--sat:' + t + 'px;--sab:' + b + 'px}</style>';
+  }
   function parseMeta(html) {
     var doc = new DOMParser().parseFromString(html, 'text/html'), paper = doc.getElementById('paper');
     if (!paper) return null;
@@ -856,7 +866,8 @@
         schedulePush(true);
       }
       html = upgradeReader(html);
-      $('frame').srcdoc = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, function (x) { return x + INJECT; }) : INJECT + html;
+      var inject = INJECT + safeAreas();
+      $('frame').srcdoc = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, function (x) { return x + inject; }) : inject + html;
       clearTimeout(readyTimer);
       readyTimer = setTimeout(function () { $('back').hidden = false; $('loading').hidden = true; }, 3000);
       clearInterval(readPoll);

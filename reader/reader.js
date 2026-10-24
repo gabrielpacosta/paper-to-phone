@@ -1,4 +1,4 @@
-/* p2p-reader 4 */
+/* p2p-reader 5 */
 (function () {
   'use strict';
   var D = document, R = D.documentElement, W = window;
@@ -520,7 +520,8 @@
     if (name !== curName) { where.textContent = name; curName = name; }
     var left = Math.ceil(TOTAL * (1 - p));
     sub.textContent = p < 0.015 ? (TOTAL ? TOTAL + ' min read' : 'Start') : p > 0.985 ? 'Finished' : (TOTAL ? left + ' min left' : Math.round(p * 100) + '%');
-    if (!openSheet && !finding && !viewer.classList.contains('on') && !(selbar && selbar.classList.contains('on'))) {
+    if (toast && toast.classList.contains('on') && settled && Math.abs(y - resumeY) > 60) toastOff();   // reading again: the note has done its job
+    if (!openSheet && !finding && !viewer.classList.contains('on') && !(selbar && selbar.classList.contains('on')) && !(toast && toast.classList.contains('on'))) {
       if (y > lastY + 8 && y > 260) dock.classList.add('hide');
       else if (y < lastY - 8 || y >= max - 80) dock.classList.remove('hide');
     }
@@ -561,7 +562,14 @@
   $('#find').addEventListener('click', function () { openFind(selectedWords()); });
   $('#aa').addEventListener('click', function () { showSheet('settings'); });
 
-  var toast = $('#toast'), last = load(KEY, null), hideToast = null;
+  var toast = $('#toast'), last = load(KEY, null), hideToast = null, resumeY = 0;
+  function toastOn() { toast.classList.add('on'); dock.classList.add('hide'); }         // the note takes the bar's place
+  function toastOff() {
+    clearTimeout(hideToast);
+    if (!toast.classList.contains('on')) return;
+    toast.classList.remove('on');
+    if (!openSheet && !finding && !(selbar && selbar.classList.contains('on'))) dock.classList.remove('hide');
+  }
   function target(rec) {
     var el = typeof rec.a === 'number' ? ANCH[rec.a] : null;
     if (el && rec.x && norm(el.textContent).slice(0, 32) !== rec.x) el = null;      // the paper changed: use the fraction
@@ -571,7 +579,7 @@
   function resumePlace() {                                // reopen where you left off, without asking
     if (!last || !(last.p > 0.02 && last.p < 0.98)) { settled = true; return; }
     var stop = false, EVS = ['touchstart', 'wheel', 'keydown', 'mousedown'];
-    function go() { if (!stop) W.scrollTo(0, Math.max(0, target(last))); }
+    function go() { if (!stop) { W.scrollTo(0, Math.max(0, target(last))); resumeY = W.scrollY; } }
     function quit() {
       if (stop) return;
       stop = true; settled = true;
@@ -587,10 +595,9 @@
     $('small', toast).textContent = (last.h ? last.h + ' \u00b7 ' : '') + Math.round(last.p * 100) + '% read';
     var over = $('.go', toast);
     over.textContent = 'Start over';
-    over.addEventListener('click', function () { quit(); clearTimeout(hideToast); toast.classList.remove('on'); scrollTo(0); });
-    $('.x', toast).addEventListener('click', function () { clearTimeout(hideToast); toast.classList.remove('on'); });
-    setTimeout(function () { toast.classList.add('on'); }, 300);
-    hideToast = setTimeout(function () { toast.classList.remove('on'); }, 5000);
+    over.addEventListener('click', function () { quit(); toastOff(); scrollTo(0); });
+    $('.x', toast).addEventListener('click', toastOff);
+    setTimeout(function () { if (!finding && !openSheet) { toastOn(); hideToast = setTimeout(toastOff, 5000); } }, 300);
   }
 
   /* ---------- captions, authors and tables that need a second look ---------- */
